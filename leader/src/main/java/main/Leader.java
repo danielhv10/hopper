@@ -22,18 +22,26 @@ import controller.WorkersController;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.server.ServerConfig;
+import org.apache.zookeeper.server.ZooKeeperServerMain;
+import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import util.PropertiesLoader;
 import zookeeper.ZooPathTree;
 import zookeeper.ZooServerConnection;
 import zookeeper.ZookeeperEntity;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Properties;
 
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
-public class Master implements ZookeeperEntity {
+public class Leader implements ZookeeperEntity {
 
     public WorkersController workersController;
     public TasksController tasksController;
@@ -42,22 +50,89 @@ public class Master implements ZookeeperEntity {
     private MasterStates state;
     private final ZooKeeper zk;
 
-    private final static Logger LOG = Logger.getLogger(Master.class);
+    private final static Logger LOG = Logger.getLogger(main.Leader.class);
 
 
-    public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+    public static void main(String... args) throws IOException, InterruptedException, KeeperException {
 
-        Master m = new Master();
+
+        for(String arg: args){
+
+            switch (arg){
+
+                case InitArguments.DEVELOPMENT:
+
+                    //Delete zookeeper server directory
+                    try {
+
+                        Files.walk(new File(System.getProperty("java.io.tmpdir").concat("zookeperDataTemp")).toPath())
+                                .sorted(Comparator.reverseOrder())
+                                .map(Path::toFile)
+                                .forEach(File::delete);
+
+                    } catch (NoSuchFileException e){
+
+                        LOG.info("ZookeeperDataTem doesn't exists");
+                    }
+
+                    Path zookeeperDataDir = Files.createTempDirectory("zookeperDataTemp");
+
+                    LOG.info("Starting zookeeper server development instance");
+                    ZooKeeperServerMain zooKeeperServer = new ZooKeeperServerMain();
+
+                    Properties properties = new Properties();
+                    properties.setProperty("clientPort","2181");
+                    properties.setProperty("dataDir", zookeeperDataDir.toString());
+                    properties.setProperty("tickTime", Integer.toString(1000));
+
+                    QuorumPeerConfig quorumConfiguration = new QuorumPeerConfig();
+
+
+                    try {
+                        quorumConfiguration.parseProperties(properties);
+                    } catch(Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    final ServerConfig configuration = new ServerConfig();
+                    configuration.readFrom(quorumConfiguration);
+
+                    new Thread(()-> {
+
+
+                        try {
+                            zooKeeperServer.runFromConfig(configuration);
+
+
+                        } catch (IOException e) {
+                            LOG.error("ZooKeeper server  Failed", e);
+                        }
+
+                        try {
+
+                            Thread.sleep(Long.MAX_VALUE);
+
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }).start();
+
+                default:
+            }
+        }
+
+
+        Leader m = new Leader();
 
         m.runForMaster();
-        m.masterExists();
+        m.leaderExists();
 
 
         Thread.sleep(Long.MAX_VALUE);
     }
 
 
-    public Master() throws IOException {
+    public Leader() throws IOException {
 
         state = MasterStates.START;
         String zookeeperHost = null;
@@ -82,7 +157,7 @@ public class Master implements ZookeeperEntity {
         this.deleteTaskController = new DeleteTaskController();
     }
 
-    public void masterExists(){
+    public void leaderExists(){
 
         //Watcher to manage zookeeper state change:
         Watcher masterExistsWatcher = new Watcher(){
@@ -111,7 +186,7 @@ public class Master implements ZookeeperEntity {
 
                     case CONNECTIONLOSS:
 
-                        masterExists();
+                        leaderExists();
                         break;
 
                     case OK:
@@ -175,7 +250,7 @@ public class Master implements ZookeeperEntity {
                     case NODEEXISTS:
                         LOG.info(new StringBuilder(). append(ZookeeperEntity.SERVER_ID).append(" : ").append("I'm NOT MASTER"));
                         setState(MasterStates.NOTELECTED);
-                        masterExists();
+                        leaderExists();
                         break;
 
                     default:
