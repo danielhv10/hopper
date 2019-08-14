@@ -18,9 +18,9 @@ package zookeeper;
 
 public class ZooPathTree  {
 
-    static final public String BASE_PATH = "/twitterConsumer";
+    static final public String BASE_PATH = "/hopper";
 
-    static final public String MASTER   = "/master-TwitterConsumer";
+    static final public String MASTER   = "/hopper-leader";
 
     static final public String WORKERS = BASE_PATH.concat("/workers");
     static final public String ASSIGN  = BASE_PATH.concat("/assign");

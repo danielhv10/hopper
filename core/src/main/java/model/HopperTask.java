@@ -18,7 +18,7 @@ package model;
 
 import java.io.Serializable;
 
-public abstract class ZooTask implements Serializable {
+public abstract class HopperTask implements Serializable {
 
     @Base
     private  String id;
@@ -27,7 +27,7 @@ public abstract class ZooTask implements Serializable {
     @Base
     private TaskStatus taskStatus;
 
-    public ZooTask() {
+    public HopperTask() {
     }
 
     public String getId() {
