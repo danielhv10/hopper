@@ -36,12 +36,11 @@ public class Client implements ZookeeperEntity {
     private final ZooTaskController zooTaskController;
     protected final ZooKeeper zk;
     private ClientStates state;
+    private TaskAPI taskAPI;
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
         new Client();
-
-        new TaskAPI();
 
        StatusCache statusCache =  StatusCache.getInstance();
 
@@ -60,7 +59,6 @@ public class Client implements ZookeeperEntity {
         String zookeeperHost = null;
         int zookeeperPort = 0;
 
-
         HashSet<String> expectedProperties = new HashSet<>();
         expectedProperties.add("zookeeper.host");
         expectedProperties.add("zookeeper.port");
@@ -73,8 +71,11 @@ public class Client implements ZookeeperEntity {
         this.zk = ZooServerConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
         this.zooTaskController = new ZooTaskController();
 
+        this.taskAPI =  TaskAPI.getInstance();
+
         zooTaskController.getTasks();
     }
+
 
     /**
      *

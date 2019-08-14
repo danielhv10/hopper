@@ -18,7 +18,6 @@ package controller;
 
 import callback.TasksGetChildrenCallback;
 import main.Worker;
-import model.ZooTask;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -26,7 +25,6 @@ import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
-import org.apache.zookeeper.data.Stat;
 import util.Tuple;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
@@ -83,7 +81,7 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
         curatorClient.start();
 
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN_WORKER.concat(worker.SERVER_ID)).setCacheData(false).build();
+        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN_WORKER.concat(worker.getAppName() + "/").concat(worker.SERVER_ID)).setCacheData(false).build();
 
                 treeCache.getListenable().addListener((c, event) -> {
 

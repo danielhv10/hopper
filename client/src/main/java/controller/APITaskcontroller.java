@@ -17,13 +17,14 @@
 package controller;
 
 import API.TaskAPIController;
-import model.ZooTask;
+import model.HopperTask;
 import model.exceptions.TaskModelException;
 import org.apache.log4j.Logger;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Optional;
 
 //TODO manage cath exceptions
 //TODO add splicit method params call into getmethod.
@@ -34,27 +35,37 @@ public class APITaskcontroller {
     private final static Logger LOG = Logger.getLogger(APITaskcontroller.class);
 
 
-    public Object createTaskObject(Map<String, Object> values) throws TaskModelException {
+    public static Optional<Object> createTaskObject(String appName,Map<String, Object> values)  {
 
+        Optional<Object> taskModelOptional = TaskAPIController.getInstance().createTaskObject(appName);
 
-       ZooTask zooTask = null;
+        if(taskModelOptional.isPresent()){
 
-           final Object taskModel = TaskAPIController.createTaskObject();
+            for (Map.Entry<String, Object> value: values.entrySet()) {
 
-           boolean failed = false;
+                try {
 
+                    setTaskfeature(value.getKey(),value.getValue(), taskModelOptional.get());
 
-           for (Map.Entry<String, Object> value: values.entrySet()) {
+                } catch (TaskModelException e) {
 
-               setTaskfeature(value.getKey(),value.getValue(), taskModel);
+                    LOG.info("Task scheduling fail: ".concat(e.getMessage()));
+                    return Optional.empty();
+                }
 
-           }
+            }
 
-       return zooTask;
+            return taskModelOptional;
+
+        }else{
+
+            LOG.error("Object creation failed");
+            return Optional.empty();
+        }
    }
 
 
-    public void setTaskfeature(String k, Object v, Object taskModel) throws TaskModelException {
+    public static void setTaskfeature(String k, Object v, Object taskModel) throws TaskModelException {
 
         Method methodList[] =  taskModel.getClass().getDeclaredMethods();
 
@@ -74,10 +85,11 @@ public class APITaskcontroller {
 
                 found = true;
                 try {
+
                     methodList[i].invoke(taskModel,v);
 
                 } catch (IllegalAccessException e) {
-
+                    e.printStackTrace();
                 } catch (InvocationTargetException e) {
                     e.printStackTrace();
                 }

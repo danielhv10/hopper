@@ -22,6 +22,7 @@ import main.ClientStates;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.json.JSONObject;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
@@ -65,7 +66,7 @@ public class ZooTaskController extends ZooController {
                         break;
 
                     case OK:
-                        //TODO control task are not created yet
+
                         LOG.info(new StringBuilder().append("Suscessfully got new Task: ").append(children.get(0)));
                         geTaskData(children.get(0));
                         break;
@@ -105,7 +106,17 @@ public class ZooTaskController extends ZooController {
 
                         LOG.info("TaskData: ".concat(taskData));
 
-                        TaskAPIController.updateAPI(new JSONObject(taskData));
+                        //TODO create this znode async.
+                        try {
+                            zk.create(ZooPathTree.TASKS.concat("/").concat(taskName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
+
+                        } catch (KeeperException e) {
+                            e.printStackTrace();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                        TaskAPIController.getInstance().updateAPI(new JSONObject(taskData));
                         break;
 
                     default:
@@ -116,9 +127,9 @@ public class ZooTaskController extends ZooController {
         },taskName);
     }
 
-    public void submitNewTask(String taskID, JSONObject jsonObject) {
+    public void submitNewTask(String taskName,String taskID, JSONObject jsonObject) {
 
-        zk.create(ZooPathTree.TASKS.concat("/").concat(taskID),
+        zk.create(ZooPathTree.TASKS.concat("/").concat(taskName).concat("/").concat(taskID),
                 jsonObject.toString().getBytes(), OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
                     @Override
                     public void processResult(int rc, String path, Object ctx, String name) {
@@ -127,7 +138,7 @@ public class ZooTaskController extends ZooController {
 
                             case CONNECTIONLOSS:
 
-                                submitNewTask(taskID, jsonObject);
+                                submitNewTask(taskName, taskID, jsonObject);
                                 break;
 
                             case OK:

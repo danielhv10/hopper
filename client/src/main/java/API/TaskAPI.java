@@ -23,10 +23,10 @@ import cache.StatusCache;
 import controller.APITaskcontroller;
 import controller.ZooTaskController;
 import model.TaskProperties;
-import model.exceptions.TaskModelException;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 
+import java.util.Optional;
 import java.util.Random;
 
 import static spark.Spark.*;
@@ -35,15 +35,31 @@ public class TaskAPI implements TaskAPIInterface{
 
     private final static Logger LOG = Logger.getLogger(TaskAPI.class);
 
+    private  static TaskAPI instance;
+
     private ZooTaskController zooTaskController;
+    private TaskAPIController taskAPIController;
 
-    public TaskAPI(){
+    public static TaskAPI getInstance(){
 
-        zooTaskController = new ZooTaskController();
+        if(instance == null){
+            instance = new TaskAPI();
+        }
 
+        return instance;
+    }
+
+    private TaskAPI(){
+
+        this.zooTaskController = new ZooTaskController();
+        this.taskAPIController = TaskAPIController.getInstance();
         port(8080);
 
-        post("/", (request, response) -> {
+    }
+
+    public void deployAPI(String appName){
+
+        post("/".concat(appName), (request, response) -> {
 
             LOG.info("received this body: ".concat(request.body()));
 
@@ -52,9 +68,8 @@ public class TaskAPI implements TaskAPIInterface{
             LOG.info("Adding new task to zookeeper: ".concat(requestParsed.toString()));
             response.type("application/json");
 
-            String actionStatus = null;
 
-            for(String fieldName : TaskAPIController.getRequiredFields()){
+            for(String fieldName : taskAPIController.getRequiredFields(appName)){
 
                 if(!requestParsed.has(fieldName)){
                     response.status(400);
@@ -63,20 +78,21 @@ public class TaskAPI implements TaskAPIInterface{
                 }
             }
 
-            try{
-                actionStatus = addTask(requestParsed);
+            Optional<String> actionStatus = addTask(appName,requestParsed);
 
-            }catch (TaskModelException e){
-                response.status(400);
-                return new JSONObject().put("status", AddTaskStatusResponse.ERROR).put("message", e);
+            if(actionStatus.isPresent()) {
+
+                response.status(200);
+                return new JSONObject().put("taskId", actionStatus.get()).put("status", AddTaskStatusResponse.SUCCESS);
             }
+            else {
 
-            response.status(200);
-            return new JSONObject().put("taskId", actionStatus).put("status", AddTaskStatusResponse.SUCCESS);
-
+                response.status(400);
+                return new JSONObject().put("status", AddTaskStatusResponse.ERROR).put("message", "Malformed request");
+            }
         });
 
-        get("/", (request, response) -> {
+        get("/".concat(appName), (request, response) -> {
 
             LOG.info("received this body: ".concat(request.body()));
 
@@ -89,7 +105,7 @@ public class TaskAPI implements TaskAPIInterface{
             return new JSONObject().put("status", actionStatus);
         });
 
-        delete("/", (request, response) -> {
+        delete("/".concat(appName), (request, response) -> {
 
             LOG.info("received this body: ".concat(request.body()));
 
@@ -101,34 +117,31 @@ public class TaskAPI implements TaskAPIInterface{
             DeleteTaskStatusResponse actionStatus = deleteTask(requestParsed.getString("taskId"));
 
             return new JSONObject().put("status", actionStatus);
-
-
         });
     }
 
     @Override
-    public String addTask(JSONObject jsonObject) throws TaskModelException {
+    public Optional<String> addTask(String appName, JSONObject jsonObject){
 
-        //TODO controll the reflexion status.
         LOG.info("Adding new task to zookeeper: ".concat(jsonObject.toString()));
 
-        String id = null;
+        String id;
 
+        if( APITaskcontroller.createTaskObject(appName,jsonObject.toMap()).isPresent()){
 
-        new APITaskcontroller().createTaskObject(jsonObject.toMap());
+            id  = Integer.toHexString(new Random().nextInt());
 
-        id = Integer.toHexString(new Random().nextInt());
+            jsonObject.put(TaskProperties.ID, id);
+            jsonObject.put(TaskProperties.APP_NAME, appName);
 
-        //NUEVO///////////////////////
+            zooTaskController.submitNewTask(appName, id, jsonObject);
 
-        jsonObject.put(TaskProperties.ID, id);
-        jsonObject.put(TaskProperties.APP_NAME, TaskAPIController.APP_NAME);
+            return Optional.of(id);
 
-        /////////////////////////////
+        }else{
 
-        zooTaskController.submitNewTask(id, jsonObject);
-
-        return id;
+            return Optional.empty();
+        }
     }
 
     @Override

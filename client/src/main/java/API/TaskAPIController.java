@@ -16,9 +16,10 @@
 
 package API;
 
+import com.google.common.collect.Multimap;
 import model.Required;
 import model.TaskProperties;
-import model.ZooTask;
+import model.HopperTask;
 import net.bytebuddy.ByteBuddy;
 
 import net.bytebuddy.description.annotation.AnnotationDescription;
@@ -29,24 +30,48 @@ import org.json.JSONObject;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 //TODO change the static approaching
 
 public class TaskAPIController {
 
     private final static Logger LOG = Logger.getLogger(TaskAPIController.class);
-    public static DynamicType.Builder<?> taskModel;
-    public static String APP_NAME;
-    private static List<String> requiredFields;
 
-    public static void updateAPI(JSONObject taskJSON){
+    private  static TaskAPIController INSTANCE;
+
+
+    public static synchronized TaskAPIController getInstance(){
+        if(INSTANCE == null){
+            INSTANCE = new TaskAPIController();
+        }
+
+        return INSTANCE;
+    }
+
+    private List<String> appNames;
+    public Multimap<String, String> requiredFieldsMap;
+    private Map<String,DynamicType.Builder<?>> taskModelMap;
+
+
+    private TaskAPIController(){
+
+        this.taskModelMap = new HashMap<>();
+        this.appNames = new ArrayList<>();
+    }
+
+    public  List<String> getRequiredFields(String appName){
+
+
+        return  new ArrayList<>(requiredFieldsMap.get(appName));
+    }
+
+
+    public  void updateAPI(JSONObject taskJSON){
 
         LOG.info("New task model asigned");
+        String appName = taskJSON.getString(TaskProperties.APP_NAME);
 
-        APP_NAME = taskJSON.getString(TaskProperties.APP_NAME);
+        this.appNames.add(appName);
 
         //TODO mach this two collections better
 
@@ -61,37 +86,38 @@ public class TaskAPIController {
 
         props.forEach((k,v) -> LOG.info(k + ", " + v));
 
-        TaskAPIController.taskModel =  createBeanClass(taskJSON.getString(TaskProperties.CLASS_NAME), props);
-        updateRequiredProperties();
+        this.taskModelMap.put(appName, createBeanClass(taskJSON.getString(TaskProperties.CLASS_NAME), props));
+
+        updateRequiredProperties(appName);
+
+        TaskAPI.getInstance().deployAPI(appName);
     }
 
-    //TODO improve null return error controlling
-    public static Object createTaskObject(){
+    public  Optional<Object> createTaskObject(String taskName){
+
         try {
 
-            return taskModel.make()
+            return Optional.of(taskModelMap.get(taskName).make()
                     .load(ClassLoader.getSystemClassLoader(), ClassLoadingStrategy.Default.WRAPPER)
                     .getLoaded()
-                    .newInstance();
-
+                    .newInstance());
 
         } catch (InstantiationException e) {
+
             e.printStackTrace();
+            return Optional.empty();
         } catch (IllegalAccessException e) {
+
             e.printStackTrace();
+           return  Optional.empty();
         }
-
-        return null;
     }
 
-    public static List<String> getRequiredFields(){
-        return requiredFields;
-    }
 
     private static final DynamicType.Builder<?> createBeanClass(final String className, final Map<String, Object> properties){
 
-        DynamicType.Builder<ZooTask> buddy = new ByteBuddy()
-                .subclass(ZooTask.class)
+        DynamicType.Builder<HopperTask> buddy = new ByteBuddy()
+                .subclass(HopperTask.class)
                 .name(className);
 
         for(Map.Entry<String, Object> propEntry : properties.entrySet()){
@@ -99,6 +125,7 @@ public class TaskAPIController {
             Map<String, String> prop = (Map) propEntry.getValue();
 
             try {
+
                 if(Boolean.parseBoolean(prop.get(TaskProperties.REQUIRED))) {
 
                         buddy = buddy.defineProperty(propEntry.getKey(), Class.forName(prop.get(TaskProperties.TYPE)))
@@ -118,13 +145,13 @@ public class TaskAPIController {
         return buddy;
     }
 
-    private static void updateRequiredProperties(){
+    private void updateRequiredProperties(String appName){
 
         List<String> requiredpropeties = new ArrayList<>();
 
         //TODO get it from base class without the need of create a new object.
 
-        Field declaredFliends[]  = createTaskObject().getClass().getDeclaredFields();
+        Field declaredFliends[]  = createTaskObject(appName).getClass().getDeclaredFields();
 
         for(int i = 0; i < declaredFliends.length; ++i){
 
@@ -139,7 +166,7 @@ public class TaskAPIController {
 
         }
 
-        requiredFields = requiredpropeties;
+        requiredpropeties.forEach((requiredProperty) -> requiredFieldsMap.put(appName,requiredProperty));
     }
 }
 

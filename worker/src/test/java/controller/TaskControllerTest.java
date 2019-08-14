@@ -17,7 +17,7 @@
 package controller;
 
 import model.Required;
-import model.ZooTask;
+import model.HopperTask;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,13 +30,13 @@ import static org.junit.Assert.*;
 public class TaskControllerTest {
 
     private TaskController taskController;
-    private ZooTask workerTask;
+    private HopperTask workerTask;
 
     @Before
     public void setUp() {
         taskController = new TaskController();
 
-        workerTask = new ZooTask() {
+        workerTask = new HopperTask() {
 
             private String newAttribute1;
             private int newAttribute;
@@ -74,7 +74,7 @@ public class TaskControllerTest {
     @Test
     public void getTaskAttributes() {
 
-        Field baseTaskFields[] = ZooTask.class.getDeclaredFields();
+        Field baseTaskFields[] = HopperTask.class.getDeclaredFields();
         Field workerTaskFields[] = workerTask.getClass().getDeclaredFields();
 
         Map<String, Object> testTaskFields = taskController.getTaskAttributes(workerTask.getClass());
