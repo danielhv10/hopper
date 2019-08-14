@@ -29,9 +29,9 @@ import zookeeper.ZookeeperEntity;
 
 import java.io.IOException;
 
-public class Worker implements ZookeeperEntity {
+public class HopperWorker implements ZookeeperEntity {
 
-    private final static Logger LOG = Logger.getLogger(Worker.class);
+    private final static Logger LOG = Logger.getLogger(HopperWorker.class);
 
     protected WorkersStates status = null;
     protected WorkerTasksController workerTasksController;
@@ -50,7 +50,7 @@ public class Worker implements ZookeeperEntity {
 
 
     //TODO solve exception
-    public Worker() throws IOException {
+    public HopperWorker() throws IOException {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
         maxAmountOfTasks = 40;
 
@@ -77,7 +77,7 @@ public class Worker implements ZookeeperEntity {
         register();
     }
 
-    public Worker(String appName, String server, int port, int maxTasks, Class task) throws IOException {
+    public HopperWorker(String appName, String server, int port, int maxTasks, Class task) throws IOException {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
         maxAmountOfTasks = maxTasks;
         this.zookeeperPort = port;
@@ -144,10 +144,9 @@ public class Worker implements ZookeeperEntity {
     }
 
 
-
     private void createWorkerPath(JSONObject json){
 
-        zk.create(ZooPathTree.WORKERS + "/worker-" + ZookeeperEntity.SERVER_ID, json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL, new AsyncCallback.StringCallback(){
+        zk.create(ZooPathTree.WORKERS + "/" + this.appName + "/worker-" + ZookeeperEntity.SERVER_ID, json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL, new AsyncCallback.StringCallback(){
 
             @Override
             public void processResult(int i, String s, Object o, String s1) {
@@ -178,7 +177,7 @@ public class Worker implements ZookeeperEntity {
 
     private void createAssigngPath(){
 
-        zk.create(ZooPathTree.ASSIGN + "/worker-" + ZookeeperEntity.SERVER_ID, "Idle".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new  AsyncCallback.StringCallback(){
+        zk.create(ZooPathTree.ASSIGN + "/" + this.appName +  "/worker-" + ZookeeperEntity.SERVER_ID, "Idle".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new  AsyncCallback.StringCallback(){
 
             @Override
             public void processResult(int i, String s, Object o, String s1) {
@@ -215,7 +214,7 @@ public class Worker implements ZookeeperEntity {
         json.put(TaskProperties.APP_NAME, appName);
         json.put(TaskProperties.PROPERTIES, new JSONObject(taskController.getTaskAttributes(taskModel)));
 
-        zk.create(ZooPathTree.TASK_MODEL + "/task" + "APP1", json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new  AsyncCallback.StringCallback(){
+        zk.create(ZooPathTree.TASK_MODEL + "/task" + this.appName, json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new  AsyncCallback.StringCallback(){
 
             @Override
             public void processResult(int i, String s, Object o, String s1) {
