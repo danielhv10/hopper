@@ -74,9 +74,18 @@ public class Worker implements ZookeeperEntity {
         this.workerTasksController = new WorkerTasksController(this);
         this.status = WorkersStates.WAITING;
 
-        register();
     }
 
+    public void start(){
+        register();
+
+        try {
+            Thread.sleep(Long.MAX_VALUE);
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
     public Worker(String appName, String server, int port, int maxTasks, Class task) throws IOException {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
         maxAmountOfTasks = maxTasks;
@@ -237,6 +246,8 @@ public class Worker implements ZookeeperEntity {
 
         json.put(TaskProperties.CLASS_NAME, className);
         json.put(TaskProperties.APP_NAME, appName);
+        //TODO change this var to new approaching.
+        json.put(TaskProperties.SCHEDULING_PLAN, "random");
         json.put(TaskProperties.PROPERTIES, new JSONObject(taskController.getTaskAttributes(taskModel)));
 
         zk.create(ZooPathTree.TASK_MODEL  + "/".concat(this.appName), json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new  AsyncCallback.StringCallback(){

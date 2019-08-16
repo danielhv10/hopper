@@ -17,6 +17,7 @@
 package controller;
 
 import API.TaskAPIController;
+import cache.TaskModelCache;
 import main.Client;
 import main.ClientStates;
 import org.apache.log4j.Logger;
@@ -35,49 +36,13 @@ public class ZooTaskController extends ZooController {
 
     private final static Logger LOG = Logger.getLogger(ZooTaskController.class);
     private ClientStates state;
-
+    private  TaskModelCache taskModelCache;
 
     public ZooTaskController(){
 
+        this.taskModelCache = TaskModelCache.getInstance();
     }
 
-    public void getTasks(){
-
-        LOG.info("Client-".concat(Client.SERVER_ID).concat(" getting tasks"));
-
-        Watcher tasksChangeWatcher;
-
-        tasksChangeWatcher = new Watcher() { public void process(WatchedEvent e) {
-            if(e.getType() == Event.EventType.NodeChildrenChanged) { assert ZooPathTree.ASSIGN.concat(Client.SERVER_ID).equals( e.getPath() );
-                getTasks();
-            }
-        }};
-
-        LOG.info(ZooPathTree.TASK_MODEL);
-        zk.getChildren(ZooPathTree.TASK_MODEL, tasksChangeWatcher, new AsyncCallback.ChildrenCallback() {
-            @Override
-            public void processResult(int rc, String path, Object ctx, List<String> children) {
-
-                switch (KeeperException.Code.get(rc)) {
-
-                    case CONNECTIONLOSS:
-
-                        getTasks();
-                        break;
-
-                    case OK:
-
-                        LOG.info(new StringBuilder().append("Suscessfully got new Task: ").append(children.get(0)));
-                        geTaskData(children.get(0));
-                        break;
-
-                    default:
-
-                        LOG.error(new StringBuilder("getChildren Failed ").append(KeeperException.create(KeeperException.Code.get(rc), path)));
-                }
-            }
-        }, null);
-    }
 
     public void geTaskData(String taskName){
 
@@ -106,9 +71,11 @@ public class ZooTaskController extends ZooController {
 
                         LOG.info("TaskData: ".concat(taskData));
 
-                        //TODO create this znode async.
+                        //TODO create those znode async.
                         try {
+
                             zk.create(ZooPathTree.TASKS.concat("/").concat(taskName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
+                            zk.create(ZooPathTree.STATUS.concat("/").concat(taskName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
 
                         } catch (KeeperException e) {
                             e.printStackTrace();
@@ -144,6 +111,18 @@ public class ZooTaskController extends ZooController {
                             case OK:
 
                                 LOG.info("task was created correctly".concat(": ").concat(path));
+                                //TODO do it async
+                                try {
+
+                                    zk.create(ZooPathTree.STATUS.concat("/").concat(taskName).concat("/").concat(taskID),
+                                            "{status: \" Pending\"}".getBytes(),ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+
+                                } catch (KeeperException e) {
+                                    e.printStackTrace();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
                                 break;
 
                             default:

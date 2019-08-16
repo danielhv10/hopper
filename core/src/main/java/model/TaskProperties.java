@@ -24,5 +24,6 @@ public class TaskProperties {
     public static String PROPERTIES = "props";
     public static String REQUIRED = "fieldRequired";
     public static String TYPE     = "fieldType";
+    public static String SCHEDULING_PLAN = "schedulingPlan";
 
 }

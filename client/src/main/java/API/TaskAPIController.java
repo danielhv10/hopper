@@ -16,6 +16,7 @@
 
 package API;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import model.Required;
 import model.TaskProperties;
@@ -57,6 +58,7 @@ public class TaskAPIController {
 
         this.taskModelMap = new HashMap<>();
         this.appNames = new ArrayList<>();
+        this.requiredFieldsMap =  ArrayListMultimap.create();
     }
 
     public  List<String> getRequiredFields(String appName){

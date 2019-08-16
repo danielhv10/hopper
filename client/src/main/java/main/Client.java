@@ -73,7 +73,6 @@ public class Client implements ZookeeperEntity {
 
         this.taskAPI =  TaskAPI.getInstance();
 
-        zooTaskController.getTasks();
     }
 
 
