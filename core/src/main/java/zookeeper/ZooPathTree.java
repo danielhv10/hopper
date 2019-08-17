@@ -31,6 +31,6 @@ public class ZooPathTree  {
 
     static final public String CLIENT_DATA_UPDATE = BASE_PATH.concat("/updateDate");
 
-    static final public String ASSIGN_WORKER = BASE_PATH.concat("/assign/worker-");
+    static final public String ASSIGN_WORKER = "/worker-";
 
 }

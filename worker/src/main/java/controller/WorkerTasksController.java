@@ -81,7 +81,7 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
         curatorClient.start();
 
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN_WORKER.concat(worker.getAppName() + "/").concat(worker.SERVER_ID)).setCacheData(false).build();
+        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN.concat("/").concat(worker.getAppName()).concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID)).setCacheData(false).build();
 
                 treeCache.getListenable().addListener((c, event) -> {
 

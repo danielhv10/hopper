@@ -16,17 +16,15 @@
 
 package controller;
 
-
 import cache.WorkerCacheModel;
 import cache.WorkersCache;
-import main.AssignTaskController;
+import main.APP;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.json.JSONObject;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
-
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -37,11 +35,16 @@ public class WorkersController extends ZooController {
 
     protected final static Logger LOG = Logger.getLogger(WorkersController.class);
     private final WorkersCache workersCache;
+    private final String zooWorkersPath;
+    private final String zooAssignmentPath;
+    private final APP app;
 
+    public WorkersController(APP app) {
+        this.app = app;
+        this.zooWorkersPath = ZooPathTree.WORKERS.concat("/").concat(app.getAppName());
+        this.zooAssignmentPath = ZooPathTree.ASSIGN.concat("/").concat(app.getAppName());
 
-    public WorkersController() {
-
-        this.workersCache = WorkersCache.getInstance();
+        this.workersCache = new WorkersCache();
     }
 
     public void getWorkersFromZookeeper() {
@@ -51,7 +54,7 @@ public class WorkersController extends ZooController {
             public void process(WatchedEvent watchedEvent) {
                 if (watchedEvent.getType() == Event.EventType.NodeChildrenChanged) {
 
-                    assert ZooPathTree.WORKERS.equals(watchedEvent.getPath());
+                    assert zooWorkersPath.equals(watchedEvent.getPath());
 
                     getWorkersFromZookeeper();
 
@@ -59,10 +62,9 @@ public class WorkersController extends ZooController {
             }
         };
 
-        zk.getChildren(ZooPathTree.WORKERS, workersChangeWatcher, new AsyncCallback.ChildrenCallback() {
+        zk.getChildren(zooWorkersPath, workersChangeWatcher, new AsyncCallback.ChildrenCallback() {
             @Override
             public void processResult(int i, String s, Object o, List<String> workerList) {
-                AssignTaskController assignTaskController = new AssignTaskController();
                 List<String> tempWorkerList = null;
 
                 switch(KeeperException.Code.get(i)){
@@ -98,7 +100,7 @@ public class WorkersController extends ZooController {
                         getWorkerListAsString().forEach((e) -> LOG.info(new StringBuilder().append("   * ").append(e)));
 
                         //Get zookeeper tasks in orger to: No workers registered when there are new task to do manager
-                        assignTaskController.getZookeeperTasks();
+                        app.getAssignTaskController().getZookeeperTasks();
 
                         break;
 
@@ -125,15 +127,13 @@ public class WorkersController extends ZooController {
      */
     public void deleteWorkerAssignode(String worker) throws KeeperException, InterruptedException {
         LOG.info("Deleting zookeeperworker assignment ".concat(worker));
-        String workerPath = ZooPathTree.ASSIGN.concat("/").concat(worker);
+        String workerPath = zooAssignmentPath.concat("/").concat(worker);
         TasksController tasksController = new TasksController();
 
         zk.getChildren(workerPath, true, new AsyncCallback.ChildrenCallback() {
             @Override
             public void processResult(int i, String s, Object o, List<String> children) {
-                AssignTaskController assignTaskController = new AssignTaskController();
                 TasksController tasksController = new TasksController();
-                WorkersController workersController = new WorkersController();
 
                 LOG.info("Starting task reassingment");
                 String currentPath;
@@ -157,8 +157,8 @@ public class WorkersController extends ZooController {
                                 try {
 
                                     tasksController.createTask(taskName, tasksController.syncGetNodedata(currentPath));
-                                    assignTaskController.deleteAssignment(worker,taskName);
-                                    workersController.deleteEmptyAssignemtNode(worker);
+                                    app.getAssignTaskController().deleteAssignment(worker,taskName);
+                                    deleteEmptyAssignemtNode(worker);
 
                                 } catch (KeeperException e) {
                                     LOG.error("imposible to get task data from assignment");
@@ -184,7 +184,7 @@ public class WorkersController extends ZooController {
 
     public void deleteEmptyAssignemtNode(String worker) throws KeeperException, InterruptedException {
         LOG.info("Deleting zookeeperworker assignment ".concat(worker));
-        String workerPath = ZooPathTree.ASSIGN.concat("/").concat(worker);
+        String workerPath = zooAssignmentPath.concat("/").concat(worker);
         zk.delete(workerPath, -1);
     }
 
@@ -212,7 +212,7 @@ public class WorkersController extends ZooController {
 
             workerTemp.forEach((e) -> {
 
-                zk.getData(ZooPathTree.WORKERS.concat("/").concat(e), null, new AsyncCallback.DataCallback() {
+                zk.getData(zooWorkersPath.concat("/").concat(e), null, new AsyncCallback.DataCallback() {
 
                     @Override
                     public void processResult(int i, String path, Object o, byte[] data, Stat stat) {
@@ -222,7 +222,7 @@ public class WorkersController extends ZooController {
 
                             case CONNECTIONLOSS:
 
-                                zk.getData(ZooPathTree.WORKERS.concat("/").concat(e), null, this, null);
+                                zk.getData(zooWorkersPath.concat("/").concat(e), null, this, null);
                                 break;
 
                             case OK:
@@ -271,7 +271,7 @@ public class WorkersController extends ZooController {
     //TODO control exceptions
     public synchronized void doneAssignmentTask(WorkerCacheModel workerCacheModel) {
 
-        String workerPath = ZooPathTree.WORKERS.concat("/").concat(workerCacheModel.getId());
+        String workerPath = zooWorkersPath.concat("/").concat(workerCacheModel.getId());
 
         JSONObject json = new JSONObject();
         json.put("maxAmountOfTasks", workerCacheModel.getMaxNumOfTasks());

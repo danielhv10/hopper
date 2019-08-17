@@ -16,6 +16,8 @@
 
 package main;
 
+import cache.TaskModelCache;
+import controller.AssignTaskController;
 import controller.DeleteTaskController;
 import controller.TasksController;
 import controller.WorkersController;
@@ -49,7 +51,7 @@ public class Leader implements ZookeeperEntity {
     public DeleteTaskController deleteTaskController;
     private MasterStates state;
     private final ZooKeeper zk;
-
+    private TaskModelCache taskModelCache;
     private final static Logger LOG = Logger.getLogger(main.Leader.class);
 
 
@@ -150,11 +152,6 @@ public class Leader implements ZookeeperEntity {
         //properties.forEach((k, v) -> System.out.println(k + " " + v));
 
         this.zk = ZooServerConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
-
-        this.workersController = new WorkersController();
-        this.tasksController = new TasksController();
-        this.assignTaskController = new AssignTaskController();
-        this.deleteTaskController = new DeleteTaskController();
     }
 
     public void leaderExists(){
@@ -240,11 +237,8 @@ public class Leader implements ZookeeperEntity {
 
                         bootstrap();
 
-                        //Get the list of workers and subscribe
-                        workersController.getWorkersFromZookeeper();
-                        //Get the list of tasks to asign and subscribe:
-                        assignTaskController.getZookeeperTasksAndSubscribe();
-
+                        //subscribe to taskmodel znode.
+                        taskModelCache = new TaskModelCache();
                         break;
 
                     case NODEEXISTS:

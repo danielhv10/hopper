@@ -24,22 +24,12 @@ import java.util.List;
 public class AssignTaskCache {
 
     protected final static Logger LOG = Logger.getLogger(AssignTaskCache.class);
-    private static volatile AssignTaskCache instance = null;
 
     public List<String> assignningTaskList;
 
-    private AssignTaskCache(){
+    public AssignTaskCache(){
 
         this.assignningTaskList = new ArrayList<String>();
-    }
-
-    public static synchronized AssignTaskCache getInstance(){
-
-        if(instance == null){
-            instance = new AssignTaskCache();
-        }
-
-        return instance;
     }
 
 

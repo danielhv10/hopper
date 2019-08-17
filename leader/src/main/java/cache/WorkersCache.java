@@ -28,21 +28,12 @@ public class WorkersCache{
 
     private List<WorkerCacheModel> workerList;
 
-    private static volatile WorkersCache instance = null;
 
-    private WorkersCache(){
+    public WorkersCache(){
 
         this.workerList = new ArrayList<WorkerCacheModel>();
     }
 
-    public static synchronized WorkersCache getInstance(){
-
-        if(instance == null){
-            instance = new WorkersCache();
-        }
-
-        return instance;
-    }
 
     public void restartCache(){
         this.workerList = new ArrayList<WorkerCacheModel>();

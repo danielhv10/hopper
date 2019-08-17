@@ -71,17 +71,6 @@ public class ZooTaskController extends ZooController {
 
                         LOG.info("TaskData: ".concat(taskData));
 
-                        //TODO create those znode async.
-                        try {
-
-                            zk.create(ZooPathTree.TASKS.concat("/").concat(taskName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
-                            zk.create(ZooPathTree.STATUS.concat("/").concat(taskName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
-
-                        } catch (KeeperException e) {
-                            e.printStackTrace();
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
 
                         TaskAPIController.getInstance().updateAPI(new JSONObject(taskData));
                         break;

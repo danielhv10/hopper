@@ -266,7 +266,7 @@ public class Worker implements ZookeeperEntity {
                         break;
 
                     case NODEEXISTS:
-                        LOG.warn("Task already exists: APP1");
+                        LOG.warn("Task already exists: ".concat(appName));
                         break;
 
                     default:

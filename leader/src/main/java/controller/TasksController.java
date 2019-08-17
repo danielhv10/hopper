@@ -31,11 +31,11 @@ public class TasksController extends ZooController {
     }
 
     //TODO
-    public void deleteTask(String taskName){
+    public void deleteTask(String appName,String taskName){
 
         try {
 
-            zk.delete(ZooPathTree.TASKS.concat("/").concat(taskName), -1);
+            zk.delete(ZooPathTree.TASKS.concat("/").concat(appName).concat("/").concat(taskName), -1);
 
             //TODO CONTROL EXCEPTIONS
         } catch (InterruptedException e) {

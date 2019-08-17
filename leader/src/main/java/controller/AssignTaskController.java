@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package main;
+package controller;
 
 import cache.AssignTaskCache;
 import cache.WorkerCacheModel;
-import controller.TasksController;
-import controller.WorkersController;
+import com.oracle.tools.packager.Log;
+import main.APP;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
@@ -32,11 +32,21 @@ import java.util.List;
 public class AssignTaskController extends ZooController {
 
     private final static Logger LOG = Logger.getLogger(AssignTaskController.class);
+    private final APP app;
+    private final String zooTasksPath;
+    private final String zooAssignmentPath;
+
+
     public final AssignTaskCache assignTaskCache;
 
 
-    public AssignTaskController() {
-        this.assignTaskCache = AssignTaskCache.getInstance();
+    public AssignTaskController(APP app) {
+
+        this.app = app;
+        this.zooAssignmentPath = ZooPathTree.ASSIGN.concat("/").concat(app.getAppName());
+        this.zooTasksPath = ZooPathTree.TASKS.concat("/").concat(app.getAppName());
+        this.assignTaskCache = new AssignTaskCache();
+
     }
 
     public  boolean startAssignment(String task){
@@ -55,13 +65,13 @@ public class AssignTaskController extends ZooController {
 
 
         tasksChangeWatcher = new Watcher() { public void process(WatchedEvent e) {
-            if(e.getType() == Watcher.Event.EventType.NodeChildrenChanged) { assert ZooPathTree.TASKS.equals( e.getPath() );
+            if(e.getType() == Watcher.Event.EventType.NodeChildrenChanged) { assert zooTasksPath.equals( e.getPath() );
                 getZookeeperTasksAndSubscribe();
             }
         }};
 
 
-        zk.getChildren(ZooPathTree.TASKS,  tasksChangeWatcher, new AsyncCallback.ChildrenCallback() {
+        zk.getChildren(zooTasksPath,  tasksChangeWatcher, new AsyncCallback.ChildrenCallback() {
             @Override
             public void processResult(int i, String s, Object o, List<String> children) {
                 switch (KeeperException.Code.get(i)){
@@ -74,7 +84,7 @@ public class AssignTaskController extends ZooController {
                     case OK:
 
                         if(children != null){
-
+                            Log.info("new task added in app: ".concat(app.getAppName()));
                             assignTasks(children);
                         }
                         break;
@@ -90,7 +100,7 @@ public class AssignTaskController extends ZooController {
 
     public void getZookeeperTasks() {
 
-        zk.getChildren(ZooPathTree.TASKS,  null, new AsyncCallback.ChildrenCallback() {
+        zk.getChildren(zooTasksPath,  null, new AsyncCallback.ChildrenCallback() {
             @Override
             public void processResult(int i, String s, Object o, List<String> children) {
                 switch (KeeperException.Code.get(i)){
@@ -120,7 +130,7 @@ public class AssignTaskController extends ZooController {
 
     public  void createAssignment(WorkerCacheModel workerCacheModel, String taskName, byte[] data) {
 
-        String path = ZooPathTree.ASSIGN.concat("/").concat(workerCacheModel.getId()).concat("/").concat(taskName);
+        String path = zooAssignmentPath.concat("/").concat(workerCacheModel.getId()).concat("/").concat(taskName);
 
 
         if (startAssignment(taskName)){
@@ -130,7 +140,6 @@ public class AssignTaskController extends ZooController {
                 @Override
                 public void processResult(int i, String s, Object o, String s1) {
                     TasksController tasksController = new TasksController();
-                    WorkersController workersController = new WorkersController();
 
                     LOG.info(path);
                     //Get the taskName without the path.
@@ -152,14 +161,14 @@ public class AssignTaskController extends ZooController {
                             LOG.info(taskName);
 
                             //Delete task from tasks
-                            tasksController.deleteTask(taskName);
+                            tasksController.deleteTask(app.getAppName(),taskName);
 
 
                             //Delete task from assignment cache
                             endAssignment(taskName);
 
                             //add using space worker in zookeeper
-                            workersController.doneAssignmentTask(workerCacheModel);
+                            app.getWorkersController().doneAssignmentTask(workerCacheModel);
 
                             break;
 
@@ -183,27 +192,24 @@ public class AssignTaskController extends ZooController {
 
 
     public void assignTasks(List<String> tasks){
-        WorkersController workersController = new WorkersController();
 
         tasks.forEach((e) ->{
 
             if(!this.assignTaskCache.childrenExists(e)){
 
-                zk.getData(ZooPathTree.TASKS.concat("/").concat(e), false, new AsyncCallback.DataCallback() {
+                zk.getData(zooTasksPath.concat("/").concat(e), false, new AsyncCallback.DataCallback() {
                     @Override
                     public void processResult(int i, String path, Object o, byte[] data, Stat stat) {
                         switch(KeeperException.Code.get(i)) {
 
                             case CONNECTIONLOSS:
 
-                                zk.getData(ZooPathTree.TASKS.concat("/").concat(e), false, this,e);
+                                zk.getData(zooTasksPath.concat("/").concat(e), false, this,e);
                                 break;
 
                             case OK:
 
-                                    WorkerCacheModel designatedWorker = workersController.bookIdleWorker();
-
-                                    String assignmentPath = ZooPathTree.ASSIGN + "/" + designatedWorker.getId() + "/" + (String) o;
+                                    WorkerCacheModel designatedWorker = app.getWorkersController().bookIdleWorker();
 
                                     createAssignment(designatedWorker, (String) o, data);
 
@@ -223,7 +229,7 @@ public class AssignTaskController extends ZooController {
     //TODO asynchronous delete control
     public void deleteAssignment(String workerName, String taskName){
 
-        String assignTask = ZooPathTree.ASSIGN.concat("/").concat(workerName).concat("/").concat(taskName);
+        String assignTask = zooAssignmentPath.concat("/").concat(workerName).concat("/").concat(taskName);
         LOG.info("deleting ".concat(assignTask));
         try {
 

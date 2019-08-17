@@ -16,7 +16,7 @@
 
 package cache;
 
-import controller.ZooTaskController;
+import controller.APPController;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -30,21 +30,9 @@ import java.util.HashSet;
 import java.util.Properties;
 
 
-public class TaskModelCache {
+public class TaskModelCache{
 
     private final static Logger LOG = Logger.getLogger(TaskModelCache.class);
-
-
-    private static volatile TaskModelCache instance = null;
-
-    public static synchronized TaskModelCache getInstance(){
-
-        if(instance == null){
-            instance = new TaskModelCache();
-        }
-
-        return instance;
-    }
 
 
     private CuratorFramework curatorClient;
@@ -54,7 +42,7 @@ public class TaskModelCache {
     private String zookeeperHost;
     private int zookeeperPort;
 
-    private TaskModelCache(){
+    public TaskModelCache(){
 
         HashSet<String> expectedProperties = new HashSet<>();
         expectedProperties.add("zookeeper.host");
@@ -79,7 +67,6 @@ public class TaskModelCache {
 
         curatorClient.start();
 
-
         treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_MODEL).setCacheData(false).build();
 
         treeCache.getListenable().addListener((c, event) -> {
@@ -93,8 +80,8 @@ public class TaskModelCache {
                         String taskPath = event.getData().getPath();
                         String taskName = taskPath.substring(taskPath.lastIndexOf("/")+1);
 
-                        LOG.info("type=" + event.getType() + " path=" + taskName);
-                        new ZooTaskController().geTaskData(taskName);
+                        LOG.info("New app added" + taskName);
+                        APPController.getInstance().addAp(taskName);
                         break;
 
                     default:
