@@ -16,22 +16,26 @@
 
 package controller;
 
-import callback.TasksGetChildrenCallback;
 import main.Worker;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
 import util.Tuple;
+import zookeeper.TaskStatus;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
 
 
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.curator.framework.recipes.cache.TreeCacheEvent.Type.NODE_ADDED;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
@@ -46,20 +50,21 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
     CuratorFramework curatorClient;
     TreeCache treeCache;
 
-    //NUEVO///////////////////////////////
-    //    variables
     private TasksExecutorManager tem;
-    //////////////////////////////////////
-    //    metodos
+
     @Override
     public void onCompleted(Tuple<String, Tuple<String, Boolean>> result) {
+
         /*Aquí llega si se COMPLETÓ o se FALLÓ la tarea y la propia TAREA como Object, a la que se le puede hacer Downcasting
         para recuperar la original, es responsabilidad del TaskExecutor devolver bien en 'boolean doTask(T task)'*/
         LOG.info(String.format("%s || %s %s", result.key, result.value.key, result.value.value));
     }
+
+
     /////////////////////////////////////
     public WorkerTasksController(Worker worker){
-        tem = TasksExecutorManager.getInstance();
+        //TODO SOLVE bad pattern in the object creation
+        tem = TasksExecutorManager.getInstance(this);
         tem.setThreads(worker.getMaxAmountOfTasks());
         tem.addTasksListener(this);
         this.worker = worker;
@@ -81,56 +86,45 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
         curatorClient.start();
 
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN.concat("/").concat(worker.getAppName()).concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID)).setCacheData(false).build();
-
-                treeCache.getListenable().addListener((c, event) -> {
-
-                    if ( event.getType() == NODE_ADDED) {
-
-                        LOG.info("type=" + event.getType() + " path=" + event.getData().getPath());
-
-                        //TODO add to pull
-                        //NUEVO////////////////////////////
-                        //    ejemplo uso
-                        if(!new String(event.getData().getData()).equals("Idle")) {
-                            tem.submit(event.getData().getData(), worker.getExecutorModel(), worker.getTaskModel());
-                        }
-
-                        ///////////////////////////////////
-
-                    }
-                    else {
-
-                        LOG.error("operation not supported");
-                        throw new UnsupportedOperationException("Opeation not suported yet");
-            }
-
-        });
-
         try {
 
+            treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN.concat("/")
+                    .concat(worker.getAppName()).concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID))
+                    .setCacheData(false).build();
+
             treeCache.start();
+            Thread.sleep(1000);
 
         } catch (Exception e) {
 
             LOG.error(e);
             e.printStackTrace();
         }
+
+        treeCache.getListenable().addListener((c, event) -> {
+
+            switch (event.getType()){
+
+                case NODE_ADDED:
+                    LOG.info("type=" + event.getType() + " path=" + event.getData().getPath());
+                    if(!new String(event.getData().getData()).equals("Idle")) {
+                        tem.submit(event.getData().getData(), worker.getExecutorModel(), worker.getTaskModel());
+                    }
+                    break;
+
+                case NODE_REMOVED:
+                    LOG.info("Asigned node deleted");
+                    break;
+
+                default:
+                    LOG.error("operation not supported" + event.getType() );
+                    throw new UnsupportedOperationException("Opeation not suported yet");
+            }
+        });
+
+        //TODO if a task is asigned to this worker in am empty space between this search and the cache the task can dead in vacuum.
+        startAssignedTasks();
     }
-
-    /*
-    public void createTask(String task, String taskInfo){
-
-        LOG.info("Addindg new task to queue");
-
-        workerTasksCache.addNewTask(task, taskInfo);
-
-        addTaskStatus(task);
-
-        worker.onAssignedTasksUpdated();
-
-    }
-    */
 
 
     public void addTaskStatus(String task){
@@ -165,86 +159,16 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
     }
 
-    public void getWorkerTasks(){
+    public Optional<Map<String, ChildData>> getWorkerTasks(){
 
         LOG.info("worker-".concat(worker.SERVER_ID).concat(" getting tasks"));
 
-        Watcher tasksChangeWatcher;
+        Map<String, ChildData> workerAssignedTasks = treeCache.getCurrentChildren(ZooPathTree.ASSIGN.concat("/")
+                .concat(worker.getAppName()).concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID));
 
-
-        tasksChangeWatcher = new Watcher() { public void process(WatchedEvent e) {
-            if(e.getType() == Watcher.Event.EventType.NodeChildrenChanged) { assert ZooPathTree.ASSIGN.concat(worker.SERVER_ID).equals( e.getPath() );
-                getWorkerTasks();
-            }
-        }};
-
-        LOG.info(ZooPathTree.ASSIGN_WORKER.concat(worker.SERVER_ID));
-        zk.getChildren(ZooPathTree.ASSIGN_WORKER.concat(worker.SERVER_ID),  tasksChangeWatcher, new TasksGetChildrenCallback(worker,this), null);
+        return Optional.ofNullable(workerAssignedTasks);
     }
 
-    /*
-    public void assignTasks(List<String> tasks){
-
-        tasks.forEach((e) -> {
-
-            if(!this.workerTasksCache.childrenExists(e)){
-
-                zk.getData(ZooPathTree.ASSIGN_WORKER.concat(worker.SERVER_ID), false, new AsyncCallback.DataCallback() {
-                    @Override
-                    public void processResult(int i, String s, Object o, byte[] bytes, Stat stat) {
-
-
-                        switch(KeeperException.Code.get(i)) {
-
-                            case CONNECTIONLOSS:
-
-                                assignTasks(tasks);
-                                break;
-
-                            case OK:
-
-                                LOG.info("Starting task: ".concat((String) o));
-
-                                LOG.info("Task info: ".concat(stat.toString()));
-                                LOG.info("Getting task Body");
-
-                                try {
-
-                                    String taskData = new String(zk.getData(s.concat("/").concat((String) o),false, stat));
-
-                                    LOG.info("TaskData: ".concat(taskData));
-
-                                    createTask((String)o, taskData);
-
-                                } catch (KeeperException e) {
-                                    LOG.error(e);
-                                } catch (InterruptedException e) {
-                                    LOG.error(e);
-
-                                }
-
-                                break;
-
-                            default:
-                                LOG.error(new StringBuilder("TaskDataCallback failed ").append(KeeperException.create(KeeperException.Code.get(i), s)));
-
-                        }
-                    }
-                },e);
-            }
-        });
-    }
-    */
-    /**
-     * return current WorkerTaskList
-     * @return
-     */
-    /*
-    //TODO change to the new way
-    public Map<String, String> getWorkerCachedTaskList(){
-        return workerTasksCache.getCachedWorkerList();
-    }
-    */
     /**
      * When worker finish his task it is removed from assignment
      * @param task
@@ -256,107 +180,79 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         zk.delete(assignTaskPath,zk.exists((assignTaskPath), true).getVersion());
     }
 
-    /**
-     * Zookeeper Tasks tree mirror.
-     * it stores current values of /tasks dir
-     */
-    private class WorkerTasksCache{
+    private void startAssignedTasks(){
 
-        private Map<String, String> workerTasksList;
+        Optional listOfTasks = getWorkerTasks();
 
-        public WorkerTasksCache(){
+        if(listOfTasks.isPresent()){
+            Map tasks = (Map) listOfTasks.get();
 
-            this.workerTasksList = new HashMap<String, String>();
+            tasks.forEach((k,v)-> startAssignedTask((String)k));
         }
+    }
 
-        public Map<String, String> getWorkerCacheTasksList(){
-            return this.workerTasksList;
-        }
+    private void startAssignedTask(String taskName){
 
-        public void restartCache(){
+        String taskPath = ZooPathTree.ASSIGN.concat("/")
+                .concat(worker.getAppName())
+                .concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID).concat("/").concat(taskName);
 
-            this.workerTasksList = new HashMap<String, String>();
-        }
+        zk.getData(taskPath, false, new AsyncCallback.DataCallback() {
 
+            @Override
+            public void processResult(int i, String s, Object o, byte[] taskData, Stat stat) {
 
-        public synchronized boolean addNewTask(String task, String taskInfo){
+                switch(KeeperException.Code.get(i)) {
 
-            if(!childrenExists(task)){
-                this.workerTasksList.put(task, taskInfo);
-                return true;
-            }else{
-                return false;
-            }
-        }
+                    case CONNECTIONLOSS:
 
-        /*
-        private synchronized List<String>  deletedTasksList(List<String> children){
+                        startAssignedTask(taskName);
+                        break;
 
-            List<String> taskCheck = new ArrayList<String>();
+                    case OK:
 
-            for(String taskToProcess : this.workerTasksList.){
+                        try {
 
-                taskCheck.add(taskToProcess);
-            }
+                            tem.submit(taskData, worker.getExecutorModel(), worker.getTaskModel());
 
-            for(String taskToProcess : children){
-
-                if(childrenExists(taskToProcess)){
-                    taskCheck.remove(taskToProcess);
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        } catch (InstantiationException e) {
+                            e.printStackTrace();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        break;
+                    default:
+                        LOG.error(new StringBuilder("TaskDataCallback failed ").append(KeeperException.create(KeeperException.Code.get(i), s)));
                 }
             }
+        },taskName);
+    }
 
-            return taskCheck;
+    public void taskDone(String taskName){
+
+        String assingPath = ZooPathTree.ASSIGN.concat("/")
+                .concat(worker.getAppName())
+                .concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID).concat("/").concat(taskName);
+
+
+        String statusPath = ZooPathTree.STATUS.concat("/").concat(worker.getAppName()).concat("/").concat(taskName);
+
+        System.out.println(assingPath);
+        System.out.println(statusPath);
+        byte statusDatatoUpdate[] = "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").
+                                    concat(TaskStatus.DONE.getText()).concat("}").getBytes();
+
+        try {
+
+            zk.multi(Arrays.asList(Op.setData(statusPath, statusDatatoUpdate, -1),
+                    Op.delete(assingPath, -1)));
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (KeeperException e) {
+            e.printStackTrace();
         }
-
-
-        private synchronized List<String> addedTaskList(List<String> children){
-
-            List<String> workerCheck = new ArrayList<String>();
-
-
-            for(String taskToProcess : children){
-
-                if(!childrenExists(taskToProcess)){
-                    workerCheck.add(taskToProcess);
-                }
-            }
-
-            return workerCheck;
-
-        }
-
-
-        private synchronized void addNewChildrens(Map<String> tasks){
-            tasks.forEach((e) -> this.workerTasksList.add(e));
-        }
-
-        private synchronized void deleteNewChildrens(List<String> tasks){
-            tasks.forEach((e) -> this.workerTasksList.remove(e));
-        }
-
-
-        public synchronized void  updateCache(List<String> tasksList){
-            List<String> taskTemp = null;
-            taskTemp = deletedTasksList(tasksList);
-            if(taskTemp.size() != 0){
-                deleteNewChildrens((taskTemp));
-            }
-
-            taskTemp = addedTaskList(tasksList);
-            if(taskTemp.size() != 0){
-                addNewChildrens(taskTemp);
-            }
-        }
-
-        */
-
-        private synchronized boolean childrenExists(String children){
-            return this.workerTasksList.containsKey(children);
-        }
-
-        public Map<String, String> getCachedWorkerList(){
-            return this.workerTasksList;
-        }
-}
+    }
 }

@@ -128,7 +128,6 @@ public class WorkersController extends ZooController {
     public void deleteWorkerAssignode(String worker) throws KeeperException, InterruptedException {
         LOG.info("Deleting zookeeperworker assignment ".concat(worker));
         String workerPath = zooAssignmentPath.concat("/").concat(worker);
-        TasksController tasksController = new TasksController();
 
         zk.getChildren(workerPath, true, new AsyncCallback.ChildrenCallback() {
             @Override
@@ -152,13 +151,12 @@ public class WorkersController extends ZooController {
 
                                 currentPath = s.concat("/").concat(taskName);
 
-                                LOG.info("moving assignment from ".concat(currentPath).concat( " to ").concat(ZooPathTree.TASKS.concat("/").concat(taskName)));
+                                LOG.info("moving assignment from ".concat(currentPath).concat( " to ").concat(ZooPathTree.TASKS.concat("/")
+                                        .concat(app.getAppName()).concat("/").concat(taskName)));
 
                                 try {
-
-                                    tasksController.createTask(taskName, tasksController.syncGetNodedata(currentPath));
+                                    tasksController.createTask(app.getAppName(),taskName, tasksController.syncGetNodedata(currentPath));
                                     app.getAssignTaskController().deleteAssignment(worker,taskName);
-                                    deleteEmptyAssignemtNode(worker);
 
                                 } catch (KeeperException e) {
                                     LOG.error("imposible to get task data from assignment");
@@ -169,6 +167,8 @@ public class WorkersController extends ZooController {
                                 }
                             }
                         }
+
+                        deleteEmptyAssignemtNode(worker);
 
                         break;
 
@@ -182,10 +182,19 @@ public class WorkersController extends ZooController {
 
     }
 
-    public void deleteEmptyAssignemtNode(String worker) throws KeeperException, InterruptedException {
+    public void deleteEmptyAssignemtNode(String worker) {
         LOG.info("Deleting zookeeperworker assignment ".concat(worker));
         String workerPath = zooAssignmentPath.concat("/").concat(worker);
-        zk.delete(workerPath, -1);
+
+        try {
+            zk.delete(workerPath, -1);
+        } catch (InterruptedException e) {
+            LOG.error(e);
+            e.printStackTrace();
+        } catch (KeeperException e) {
+            LOG.error(e);
+            e.printStackTrace();
+        }
     }
 
     public List<String> deletedWorerkList(List<String> workersList) {

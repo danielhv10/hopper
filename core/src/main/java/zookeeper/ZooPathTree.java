@@ -29,8 +29,6 @@ public class ZooPathTree  {
     static final public String TASK_MODEL   = BASE_PATH.concat("/model");
     static final public String TASK_DELETE  = BASE_PATH.concat("/delete");
 
-    static final public String CLIENT_DATA_UPDATE = BASE_PATH.concat("/updateDate");
-
     static final public String ASSIGN_WORKER = "/worker-";
 
 }

@@ -71,7 +71,6 @@ public class Worker implements ZookeeperEntity {
             }
         };
 
-        this.workerTasksController = new WorkerTasksController(this);
         this.status = WorkersStates.WAITING;
 
     }
@@ -107,12 +106,10 @@ public class Worker implements ZookeeperEntity {
             }
         };
 
-        this.workerTasksController = new WorkerTasksController(this);
         this.status = WorkersStates.WAITING;
         this.maxAmountOfTasks = maxTasks;
         this.taskModel = task;
 
-        register();
     }
 
     synchronized private void updateStatus(WorkersStates status){
@@ -145,17 +142,6 @@ public class Worker implements ZookeeperEntity {
 
         json.put("numAsignedTasks",0);
         json.put("maxAmountOfTasks", maxAmountOfTasks);
-    /*
-        try {
-
-            zk.create(ZooPathTree.WORKERS + "/"  + this.appName, "k".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
-
-        } catch (KeeperException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    */
 
         //TODO optimize worker scafolding creation
         try {
@@ -174,6 +160,8 @@ public class Worker implements ZookeeperEntity {
         createAssigngPath();
 
         createTaskModel();
+
+        this.workerTasksController = new WorkerTasksController(this);
     }
 
 
@@ -222,7 +210,6 @@ public class Worker implements ZookeeperEntity {
 
                     case OK:
                         LOG.info("Assignment created successfully: " + ZookeeperEntity.SERVER_ID);
-                        workerTasksController.getWorkerTasks();
                         break;
 
                     case NODEEXISTS:
@@ -262,7 +249,6 @@ public class Worker implements ZookeeperEntity {
 
                     case OK:
                         LOG.info("Task Created successfully: " + ZookeeperEntity.SERVER_ID);
-                        workerTasksController.getWorkerTasks();
                         break;
 
                     case NODEEXISTS:

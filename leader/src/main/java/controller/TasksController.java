@@ -18,6 +18,8 @@ package controller;
 
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
+import zookeeper.TaskStatus;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
 
@@ -45,14 +47,15 @@ public class TasksController extends ZooController {
         }
     }
 
-    public void createTask(String taskName, byte[] taskData){
+    public void createTask(String appName, String taskName, byte[] taskData){
 
-        zk.create(ZooPathTree.TASKS.concat("/").concat(taskName), taskData, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
+        zk.create(ZooPathTree.TASKS.concat("/").concat(appName).concat("/")
+                .concat(taskName), taskData, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
             @Override
             public void processResult(int i, String s, Object o, String s1) {
                 switch (KeeperException.Code.get(i)){
                     case CONNECTIONLOSS:
-                        createTask(s,s.getBytes());
+                        createTask(appName,s,s.getBytes());
                         break;
 
                     case OK:
@@ -69,4 +72,5 @@ public class TasksController extends ZooController {
             }
         }, this);
     }
+
 }

@@ -23,6 +23,7 @@ import main.APP;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
+import zookeeper.TaskStatus;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
 
@@ -156,13 +157,13 @@ public class AssignTaskController extends ZooController {
 
                         case OK:
 
-
                             LOG.info("Task assigned correctly: " + taskName);
                             LOG.info(taskName);
 
                             //Delete task from tasks
                             tasksController.deleteTask(app.getAppName(),taskName);
-
+                            //Set task status to asigned
+                            setStatusAsignedTask(app.getAppName(), taskName);
 
                             //Delete task from assignment cache
                             endAssignment(taskName);
@@ -241,6 +242,32 @@ public class AssignTaskController extends ZooController {
         } catch (KeeperException e) {
             e.printStackTrace();
         }
+    }
+
+    public void setStatusAsignedTask(String appName, String taskName){
+
+        String path = ZooPathTree.STATUS.concat("/").concat(appName).concat("/").concat(taskName);
+        zk.setData(path, "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").concat(TaskStatus.ASIGNED.getText()).concat("}").getBytes(), -1, new AsyncCallback.StatCallback() {
+            @Override
+            public void processResult(int rc, String path, Object ctx, Stat stat) {
+
+                switch (KeeperException.Code.get(rc)) {
+
+
+                    case CONNECTIONLOSS:
+                        setStatusAsignedTask(appName, taskName);
+                        break;
+
+                    case OK:
+                        LOG.info("Task ".concat(taskName).concat(" status changed to assigned"));
+                        break;
+
+                    default:
+                        LOG.error("something went wrong: " + KeeperException.create(KeeperException.Code.get(rc), path));
+                }
+            }
+        }, null);
+
     }
 }
 

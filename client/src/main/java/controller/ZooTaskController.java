@@ -25,6 +25,7 @@ import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.json.JSONObject;
+import zookeeper.TaskStatus;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
 
@@ -43,10 +44,7 @@ public class ZooTaskController extends ZooController {
         this.taskModelCache = TaskModelCache.getInstance();
     }
 
-
     public void geTaskData(String taskName){
-
-        //TODO make it async
 
         zk.getData(ZooPathTree.TASK_MODEL.concat("/").concat(taskName), false, new AsyncCallback.DataCallback() {
             @Override
@@ -104,7 +102,8 @@ public class ZooTaskController extends ZooController {
                                 try {
 
                                     zk.create(ZooPathTree.STATUS.concat("/").concat(taskName).concat("/").concat(taskID),
-                                            "{status: \" Pending\"}".getBytes(),ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                                            "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").concat(TaskStatus.PENDING.getText()).concat("}")
+                                                    .getBytes(),ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 
                                 } catch (KeeperException e) {
                                     e.printStackTrace();

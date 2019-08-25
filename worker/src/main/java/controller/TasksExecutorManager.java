@@ -17,6 +17,8 @@
 package controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import model.HopperTask;
+import org.apache.log4j.Logger;
 import util.Tuple;
 
 import java.io.IOException;
@@ -29,6 +31,10 @@ import java.util.function.Supplier;
 
 public class TasksExecutorManager {
 
+    private final static Logger LOG = Logger.getLogger(TasksExecutorManager.class);
+
+    private final WorkerTasksController workerTasksController;
+
     public interface TasksListener {
 
         void onCompleted(Tuple<String, Tuple<String, Boolean>> result);
@@ -36,17 +42,20 @@ public class TasksExecutorManager {
 
     private static volatile TasksExecutorManager INSTANCE = null;
     private ExecutorService pool = null;
+    //TODO not used var
     private int threads;
 
     private final ArrayList<TasksListener> tasksListeners = new ArrayList<>();
 
-    private TasksExecutorManager() {}
+    private TasksExecutorManager(WorkerTasksController workerTasksController) {
+        this.workerTasksController = workerTasksController;
+    }
 
-    public static TasksExecutorManager getInstance() {
+    public static TasksExecutorManager getInstance(WorkerTasksController workerTasksController) {
         if (INSTANCE == null) {
             synchronized (TasksExecutorManager.class) {
                 if (INSTANCE == null) {
-                    INSTANCE = new TasksExecutorManager();
+                    INSTANCE = new TasksExecutorManager(workerTasksController);
                 }
             }
         }
@@ -66,7 +75,7 @@ public class TasksExecutorManager {
         tasksListeners.remove(listener);
     }
 
-    //FIXME Ver qué hacemos con esas excepciones
+    //TODO FIXME Ver qué hacemos con esas excepciones(control in zookeeperValue)
     public void submit(byte[] serializedTaskObject, final Class taskExecutor, final Class taskModel) throws IllegalAccessException, InstantiationException, IOException {
         if (pool == null) {
             throw new RuntimeException("'setThreads()' must be called first");
@@ -85,10 +94,17 @@ public class TasksExecutorManager {
 
             @Override
             public void accept(Tuple<String, Tuple<String, Boolean>> result) {
+
+                LOG.info("Task finished");
+
+                workerTasksController.taskDone(((HopperTask)upcastedTask).getId());
+
                 tasksListeners.forEach(l -> {
                     l.onCompleted(result);
                 });
             }
         });
     }
+
+
 }

@@ -69,6 +69,17 @@ public class TaskModelCache{
 
         treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_MODEL).setCacheData(false).build();
 
+        try {
+
+            treeCache.start();
+            //TODO contol if cache is ready by the event
+            Thread.sleep(1000);
+
+        } catch (Exception e) {
+            LOG.error(e);
+            e.printStackTrace();
+        }
+
         treeCache.getListenable().addListener((c, event) -> {
 
 
@@ -98,13 +109,5 @@ public class TaskModelCache{
 
         });
 
-        try {
-
-            treeCache.start();
-
-        } catch (Exception e) {
-            LOG.error(e);
-            e.printStackTrace();
-        }
     }
 }

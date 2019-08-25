@@ -333,7 +333,6 @@ public class Leader implements ZookeeperEntity {
         createParent(ZooPathTree.STATUS, new byte[0]);
         createParent(ZooPathTree.TASK_MODEL, new byte[0]);
         createParent(ZooPathTree.TASK_DELETE, new byte[0]);
-        createParent(ZooPathTree.CLIENT_DATA_UPDATE, emptyInitDate.toString().getBytes());
     }
 
     /**
