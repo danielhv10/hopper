@@ -14,22 +14,11 @@
  * limitations under the License.
  */
 
-package zookeeper;
+package zookeeper.Exception;
 
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooKeeper;
+public class ConnectionNotExistsException extends Exception {
 
-public class ZooController {
-
-    protected final ZooKeeper zk;
-
-    public ZooController(){
-
-        this.zk = ZooBaseConnection.getInstance().getZookeeperConnection();
-    }
-
-    public byte[] syncGetNodedata(String nodePath) throws KeeperException, InterruptedException {
-        return zk.getData(nodePath, null, null);
-
+    public ConnectionNotExistsException(String message) {
+        super(message);
     }
 }

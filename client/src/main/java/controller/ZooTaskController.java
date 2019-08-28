@@ -102,7 +102,7 @@ public class ZooTaskController extends ZooController {
                                 try {
 
                                     zk.create(ZooPathTree.STATUS.concat("/").concat(taskName).concat("/").concat(taskID),
-                                            "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").concat(TaskStatus.PENDING.getText()).concat("}")
+                                            "{".concat(TaskStatus.KEY_STATUS.getText()).concat(": ").concat(TaskStatus.PENDING.getText()).concat("}")
                                                     .getBytes(),ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 
                                 } catch (KeeperException e) {

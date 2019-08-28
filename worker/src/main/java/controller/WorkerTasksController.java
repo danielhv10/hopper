@@ -17,18 +17,16 @@
 package controller;
 
 import main.Worker;
-import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import util.Tuple;
 import zookeeper.TaskStatus;
 import zookeeper.ZooController;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
 
@@ -36,8 +34,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 
-import static org.apache.curator.framework.recipes.cache.TreeCacheEvent.Type.NODE_ADDED;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
 public class WorkerTasksController extends ZooController implements TasksExecutorManager.TasksListener {
@@ -46,9 +45,8 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
     private final Worker worker;
 
-    RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
-    CuratorFramework curatorClient;
-    TreeCache treeCache;
+    private  CuratorFramework curatorClient;
+    private  TreeCache treeCache;
 
     private TasksExecutorManager tem;
 
@@ -61,39 +59,25 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
     }
 
 
-    /////////////////////////////////////
     public WorkerTasksController(Worker worker){
-        //TODO SOLVE bad pattern in the object creation
+        CountDownLatch countdown = new CountDownLatch(1);
+
+        //TODO SOLVE bad pattern in the object creation.
         tem = TasksExecutorManager.getInstance(this);
         tem.setThreads(worker.getMaxAmountOfTasks());
         tem.addTasksListener(this);
         this.worker = worker;
 
-        String zookeeperConnectionString = new StringBuilder(worker.getZookeeperHost()).append(":").append(worker.getZookeeperPort()).toString();
-
-        curatorClient = CuratorFrameworkFactory.newClient(zookeeperConnectionString, retryPolicy);
-
-        curatorClient.getUnhandledErrorListenable().addListener((message, e) -> {
-
-            LOG.error("error=" + message);
-            e.printStackTrace();
-        });
-
-        curatorClient.getConnectionStateListenable().addListener((c, newState) -> {
-
-            LOG.info("state=" + newState);
-        });
-
-        curatorClient.start();
-
         try {
+
+            this.curatorClient = ZooCuratorConnection.getInstance().getCuratorClientConnection();
+
 
             treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.ASSIGN.concat("/")
                     .concat(worker.getAppName()).concat(ZooPathTree.ASSIGN_WORKER).concat(worker.SERVER_ID))
                     .setCacheData(false).build();
 
             treeCache.start();
-            Thread.sleep(1000);
 
         } catch (Exception e) {
 
@@ -103,25 +87,46 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
         treeCache.getListenable().addListener((c, event) -> {
 
-            switch (event.getType()){
+            if(event.getData() != null) {
 
-                case NODE_ADDED:
-                    LOG.info("type=" + event.getType() + " path=" + event.getData().getPath());
-                    if(!new String(event.getData().getData()).equals("Idle")) {
-                        tem.submit(event.getData().getData(), worker.getExecutorModel(), worker.getTaskModel());
-                    }
-                    break;
+                switch (event.getType()) {
 
-                case NODE_REMOVED:
-                    LOG.info("Asigned node deleted");
-                    break;
+                    case INITIALIZED:
+                        LOG.info("wokersTask cache started");
+                        countdown.countDown();
+                        break;
 
-                default:
-                    LOG.error("operation not supported" + event.getType() );
-                    throw new UnsupportedOperationException("Opeation not suported yet");
+
+                    case NODE_ADDED:
+                        LOG.info("type=" + event.getType() + " path=" + event.getData().getPath());
+                        if (!new String(event.getData().getData()).equals("Idle")) {
+                            tem.submit(event.getData().getData(), worker.getExecutorModel(), worker.getTaskModel());
+                        }
+                        break;
+
+                    case NODE_REMOVED:
+                        LOG.info("Asigned task ".concat(event.getData().getPath()).concat(" deleted"));
+                        break;
+
+                    default:
+                        LOG.error("operation not supported" + event.getType());
+                        throw new UnsupportedOperationException("Opeation not suported yet");
+                }
+
+            }else{
+
+                LOG.info("No data in the task cache");
             }
+
         });
 
+        try {
+
+            //Waits until cache is ready
+            countdown.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         //TODO if a task is asigned to this worker in am empty space between this search and the cache the task can dead in vacuum.
         startAssignedTasks();
     }
@@ -241,7 +246,7 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
         System.out.println(assingPath);
         System.out.println(statusPath);
-        byte statusDatatoUpdate[] = "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").
+        byte statusDatatoUpdate[] = "{".concat(TaskStatus.KEY_STATUS.getText()).concat(": ").
                                     concat(TaskStatus.DONE.getText()).concat("}").getBytes();
 
         try {

@@ -23,23 +23,26 @@ import org.apache.zookeeper.KeeperException;
 import zookeeper.ZooController;
 import zookeeper.ZooPathTree;
 
+import java.util.concurrent.CountDownLatch;
+
 
 public class DeleteTaskController extends ZooController {
 
     private final static Logger LOG = Logger.getLogger(DeleteTaskController.class);
 
+    private final String appName;
+    private final TasksDeleteCache deleteCache;
 
-    TasksDeleteCache deleteCache;
 
-
-    public DeleteTaskController(){
-
-        deleteCache = TasksDeleteCache.getInstance();
+    public DeleteTaskController(String appName){
+        this.appName = appName;
+        deleteCache = new TasksDeleteCache(appName);
     }
 
     public void deleteTask(String task){
 
-            LOG.info("Deleting task ".concat(task).concat(" from zookeeper"));
+
+        LOG.info("Deleting task ".concat(task).concat(" from zookeeper"));
 
             zk.delete(ZooPathTree.TASKS.concat("/").concat(task), 0, new AsyncCallback.VoidCallback() {
                 @Override

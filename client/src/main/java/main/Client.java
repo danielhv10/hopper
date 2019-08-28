@@ -22,7 +22,9 @@ import controller.ZooTaskController;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.ZooKeeper;
 import util.PropertiesLoader;
-import zookeeper.ZooServerConnection;
+import zookeeper.Exception.ConnectionStablishedException;
+import zookeeper.ZooBaseConnection;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZookeeperEntity;
 
 import java.io.IOException;
@@ -35,6 +37,7 @@ public class Client implements ZookeeperEntity {
 
     private final ZooTaskController zooTaskController;
     protected final ZooKeeper zk;
+    protected final ZooCuratorConnection zooCuratorConnection;
     private ClientStates state;
     private TaskAPI taskAPI;
 
@@ -68,7 +71,16 @@ public class Client implements ZookeeperEntity {
         zookeeperHost = properties.getProperty("zookeeper.host");
         zookeeperPort = Integer.parseInt(properties.getProperty("zookeeper.port"));
 
-        this.zk = ZooServerConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
+        this.zk = ZooBaseConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
+        zooCuratorConnection = ZooCuratorConnection.getInstance();
+
+        try {
+            zooCuratorConnection.init(zookeeperHost,zookeeperPort);
+
+        } catch (ConnectionStablishedException e) {
+            LOG.info(e);
+            e.printStackTrace();
+        }
         this.zooTaskController = new ZooTaskController();
 
         this.taskAPI =  TaskAPI.getInstance();

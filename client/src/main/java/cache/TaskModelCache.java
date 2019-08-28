@@ -24,10 +24,14 @@ import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 import util.PropertiesLoader;
+import zookeeper.Exception.ConnectionNotExistsException;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
 import java.util.HashSet;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 
 
 public class TaskModelCache {
@@ -48,50 +52,45 @@ public class TaskModelCache {
 
 
     private CuratorFramework curatorClient;
-    private RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
     private TreeCache treeCache;
 
-    private String zookeeperHost;
-    private int zookeeperPort;
-
     private TaskModelCache(){
+        CountDownLatch countdown = new CountDownLatch(1);
 
-        HashSet<String> expectedProperties = new HashSet<>();
-        expectedProperties.add("zookeeper.host");
-        expectedProperties.add("zookeeper.port");
+        try {
 
-        Properties properties = PropertiesLoader.loadProperties(expectedProperties, '.', LOG);
-
-        zookeeperHost = properties.getProperty("zookeeper.host");
-        zookeeperPort = Integer.parseInt(properties.getProperty("zookeeper.port"));
-        String zookeeperConnectionString = new StringBuilder(zookeeperHost).append(":").append(zookeeperPort).toString();
-
-        curatorClient = CuratorFrameworkFactory.newClient(zookeeperConnectionString, retryPolicy);
-
-        curatorClient.getUnhandledErrorListenable().addListener((message, e) -> {
-            LOG.error("error=" + message);
+            this.curatorClient = ZooCuratorConnection.getInstance().getCuratorClientConnection();
+            treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_MODEL).setCacheData(false).build();
+            treeCache.start();
+        } catch (ConnectionNotExistsException e) {
+            LOG.error(e);
             e.printStackTrace();
-        });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        curatorClient.getConnectionStateListenable().addListener((c, newState) -> {
-            LOG.info("state=" + newState);
-        });
-
-        curatorClient.start();
-
-
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_MODEL).setCacheData(false).build();
 
         treeCache.getListenable().addListener((c, event) -> {
 
+            if(event.getData() != null) {
 
-            if (event.getData() != null) {
+                switch (event.getType()) {
 
-                switch (event.getType()){
+                    case INITIALIZED:
+                        LOG.info("wokersTask cache started");
+                        if (countdown.getCount() > 0) {
+                            countdown.countDown();
+                        }
+                        break;
 
                     case NODE_ADDED:
+
                         String taskPath = event.getData().getPath();
-                        String taskName = taskPath.substring(taskPath.lastIndexOf("/")+1);
+                        String taskName = taskPath.substring(taskPath.lastIndexOf("/") + 1);
+
+                        if (taskPath.equals(ZooPathTree.TASK_MODEL) && countdown.getCount() > 0) {
+                            countdown.countDown();
+                        }
 
                         LOG.info("type=" + event.getType() + " path=" + taskName);
                         new ZooTaskController().geTaskData(taskName);
@@ -102,18 +101,16 @@ public class TaskModelCache {
                         LOG.error("TaskModel cahche error, unknown received value type=" + event.getType());
                         throw new UnsupportedOperationException("Opeation not suported yet");
                 }
+            }else{
+                LOG.info("No data in the taskModel cache");
 
-            } else {
-
-                LOG.error("TaskModel cahche error, no data received");
 
             }
 
         });
-
         try {
-
-            treeCache.start();
+            //Waits until cache is ready
+            countdown.await();
 
         } catch (Exception e) {
             LOG.error(e);

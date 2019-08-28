@@ -21,13 +21,13 @@ import API.status.GetTaskStatusResponse;
 import model.exceptions.TaskModelException;
 import org.apache.zookeeper.ZooKeeper;
 import org.json.JSONObject;
-import zookeeper.ZooServerConnection;
+import zookeeper.ZooBaseConnection;
 
 import java.util.Optional;
 
 public interface TaskAPIInterface {
 
-    ZooKeeper zk = ZooServerConnection.getInstance().getZookeeperConnection();
+    ZooKeeper zk = ZooBaseConnection.getInstance().getZookeeperConnection();
 
     public Optional<String> addTask(String appName, JSONObject jsonObject) throws TaskModelException;
     public GetTaskStatusResponse getTask(String taskId);

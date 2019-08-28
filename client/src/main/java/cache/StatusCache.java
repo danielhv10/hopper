@@ -24,18 +24,21 @@ import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 import util.PropertiesLoader;
+import zookeeper.Exception.ConnectionNotExistsException;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
 import java.util.HashSet;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 
+//TODO start it
 public class StatusCache {
 
     private final static Logger LOG = Logger.getLogger(StatusCache.class);
 
     private static volatile StatusCache instance = null;
 
-    RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
     CuratorFramework curatorClient;
     TreeCache treeCache;
 
@@ -50,39 +53,23 @@ public class StatusCache {
 
 
     private StatusCache() {
+        CountDownLatch countdown = new CountDownLatch(1);
 
-        String zookeeperHost = null;
-        int zookeeperPort = 0;
-
-        HashSet<String> expectedProperties = new HashSet<>();
-        expectedProperties.add("zookeeper.host");
-        expectedProperties.add("zookeeper.port");
-
-        Properties properties = PropertiesLoader.loadProperties(expectedProperties, '.', LOG);
-
-        zookeeperHost = properties.getProperty("zookeeper.host");
-        zookeeperPort = Integer.parseInt(properties.getProperty("zookeeper.port"));
-        String zookeeperConnectionString = new StringBuilder(zookeeperHost).append(":").append(zookeeperPort).toString();
-
-        curatorClient = CuratorFrameworkFactory.newClient(zookeeperConnectionString, retryPolicy);
-
-        curatorClient.getUnhandledErrorListenable().addListener((message, e) -> {
-           LOG.error("error=" + message);
+        try {
+            this.curatorClient = ZooCuratorConnection.getInstance().getCuratorClientConnection();
+            treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.STATUS).setCacheData(false).build();
+            treeCache.start();
+        } catch (ConnectionNotExistsException e) {
             e.printStackTrace();
-        });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        curatorClient.getConnectionStateListenable().addListener((c, newState) -> {
-            LOG.info("state=" + newState);
-        });
-
-        curatorClient.start();
-
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.STATUS).setCacheData(false).build();
 
         treeCache.getListenable().addListener((c, event) -> {
 
-            if ( event.getData() != null )
-            {
+            if ( event.getData() != null ) {
+
                 System.out.println("type=" + event.getType() + " path=" + event.getData().getPath());
             }
             else

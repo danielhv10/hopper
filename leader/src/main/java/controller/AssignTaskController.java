@@ -19,6 +19,7 @@ package controller;
 import cache.AssignTaskCache;
 import cache.WorkerCacheModel;
 import com.oracle.tools.packager.Log;
+import javafx.concurrent.Task;
 import main.APP;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
@@ -136,7 +137,7 @@ public class AssignTaskController extends ZooController {
 
         if (startAssignment(taskName)){
 
-            super.zk.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL, new AsyncCallback.StringCallback() {
+            super.zk.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
 
                 @Override
                 public void processResult(int i, String s, Object o, String s1) {
@@ -163,8 +164,8 @@ public class AssignTaskController extends ZooController {
                             //Delete task from tasks
                             tasksController.deleteTask(app.getAppName(),taskName);
                             //Set task status to asigned
-                            setStatusAsignedTask(app.getAppName(), taskName);
-
+                            setStatusAsignedTask(app.getAppName(), taskName, workerCacheModel.getId());
+                            //TODO control status if leader dead in this point of execution
                             //Delete task from assignment cache
                             endAssignment(taskName);
 
@@ -244,10 +245,12 @@ public class AssignTaskController extends ZooController {
         }
     }
 
-    public void setStatusAsignedTask(String appName, String taskName){
+    public void setStatusAsignedTask(String appName, String taskName, String workerID){
 
         String path = ZooPathTree.STATUS.concat("/").concat(appName).concat("/").concat(taskName);
-        zk.setData(path, "{".concat(TaskStatus.KEYNAME.getText()).concat(": ").concat(TaskStatus.ASIGNED.getText()).concat("}").getBytes(), -1, new AsyncCallback.StatCallback() {
+        zk.setData(path, "{".concat(TaskStatus.KEY_STATUS.getText()).concat(": ").concat(TaskStatus.ASIGNED.getText())
+                .concat(", ").concat(TaskStatus.KEY_WORKERID.getText()).concat(": ").concat(workerID).concat("}").getBytes(), -1, new AsyncCallback.StatCallback() {
+
             @Override
             public void processResult(int rc, String path, Object ctx, Stat stat) {
 
@@ -255,11 +258,12 @@ public class AssignTaskController extends ZooController {
 
 
                     case CONNECTIONLOSS:
-                        setStatusAsignedTask(appName, taskName);
+                        setStatusAsignedTask(appName, taskName, workerID);
                         break;
 
                     case OK:
                         LOG.info("Task ".concat(taskName).concat(" status changed to assigned"));
+
                         break;
 
                     default:
@@ -267,7 +271,6 @@ public class AssignTaskController extends ZooController {
                 }
             }
         }, null);
-
     }
 }
 

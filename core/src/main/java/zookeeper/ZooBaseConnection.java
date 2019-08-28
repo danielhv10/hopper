@@ -23,10 +23,10 @@ import java.io.IOException;
 import java.util.Random;
 
 
-public final class ZooServerConnection implements org.apache.zookeeper.Watcher  {
+public final class ZooBaseConnection implements org.apache.zookeeper.Watcher  {
 
     public final  String SERVER_ID = Integer.toHexString(new Random().nextInt());
-    protected final static Logger LOG = Logger.getLogger(ZooServerConnection.class);
+    protected final static Logger LOG = Logger.getLogger(ZooBaseConnection.class);
 
     protected final String hostServer;
     protected final int port;
@@ -35,27 +35,27 @@ public final class ZooServerConnection implements org.apache.zookeeper.Watcher  
     private volatile boolean connected = false;
     private volatile boolean expired = false;
 
-    private static ZooServerConnection instance = null;
+    private static ZooBaseConnection instance = null;
 
 
 
-    public static ZooServerConnection getInstance() {
+    public static ZooBaseConnection getInstance() {
         if(instance== null) {
-            instance= new ZooServerConnection();
+            instance= new ZooBaseConnection();
         }
         return instance;
     }
 
-    public static ZooServerConnection getInstance(String hostServer, int port) {
+    public static ZooBaseConnection getInstance(String hostServer, int port) {
 
         if(instance == null) {
-            instance = new ZooServerConnection(hostServer, port);
+            instance = new ZooBaseConnection(hostServer, port);
         }
         return instance;
     }
 
 
-    private ZooServerConnection(String hostServer, int port){
+    private ZooBaseConnection(String hostServer, int port){
         this.hostServer = hostServer;
         this.port = port;
 
@@ -63,7 +63,7 @@ public final class ZooServerConnection implements org.apache.zookeeper.Watcher  
     }
 
 
-    private ZooServerConnection(){
+    private ZooBaseConnection(){
         this.hostServer = "localhost";
         this.port       = 2181;
         startZK();

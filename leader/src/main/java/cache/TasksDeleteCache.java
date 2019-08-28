@@ -16,95 +16,91 @@
 
 package cache;
 
-import controller.DeleteTaskController;
-import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.log4j.Logger;
-import util.PropertiesLoader;
+import zookeeper.Exception.ConnectionNotExistsException;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
 
-import java.util.HashSet;
-import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 
-import static org.apache.curator.framework.recipes.cache.TreeCacheEvent.Type.NODE_ADDED;
 
 public class TasksDeleteCache {
 
-
     private final static Logger LOG = Logger.getLogger(TasksDeleteCache.class);
 
-    private static volatile TasksDeleteCache instance = null;
+    private final String appName;
+    private CuratorFramework curatorClient;
+    private TreeCache treeCache;
 
-    RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
-    CuratorFramework curatorClient;
-    TreeCache treeCache;
 
-    public static synchronized TasksDeleteCache getInstance(){
+    public TasksDeleteCache(String appName) {
 
-        if(instance == null){
-            instance = new TasksDeleteCache();
+        CountDownLatch countdown = new CountDownLatch(1);
+
+        this.appName = appName;
+
+        try {
+            curatorClient = ZooCuratorConnection.getInstance().getCuratorClientConnection();
+            treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_DELETE.concat("").concat(appName))
+                    .setCacheData(false).build();
+
+            treeCache.start();
+        } catch (ConnectionNotExistsException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        return instance;
-    }
-
-
-    private TasksDeleteCache() {
-
-        String zookeeperHost = null;
-        int zookeeperPort = 0;
-
-        HashSet<String> expectedProperties = new HashSet<>();
-        expectedProperties.add("zookeeper.host");
-        expectedProperties.add("zookeeper.port");
-
-        Properties properties = PropertiesLoader.loadProperties(expectedProperties, '.', LOG);
-
-        zookeeperHost = properties.getProperty("zookeeper.host");
-        zookeeperPort = Integer.parseInt(properties.getProperty("zookeeper.port"));
-        String zookeeperConnectionString = new StringBuilder(zookeeperHost).append(":").append(zookeeperPort).toString();
-
-        curatorClient = CuratorFrameworkFactory.newClient(zookeeperConnectionString, retryPolicy);
-
-        curatorClient.getUnhandledErrorListenable().addListener((message, e) -> {
-            LOG.error("error=" + message);
-            e.printStackTrace();
-        });
-
-        curatorClient.getConnectionStateListenable().addListener((c, newState) -> {
-            LOG.info("state=" + newState);
-        });
-
-        curatorClient.start();
-
-        treeCache = TreeCache.newBuilder(curatorClient, ZooPathTree.TASK_DELETE).setCacheData(false).build();
 
         treeCache.getListenable().addListener((c, event) -> {
 
-            if ( event.getType() == NODE_ADDED)
-            {
-                String taskPath = event.getData().getPath();
-                String taskName = taskPath.substring(taskPath.lastIndexOf("/")+1);
+            if(event.getData() != null){
 
-                LOG.info("type=" + event.getType() + " path=" + taskName);
-                new DeleteTaskController().deleteTask(taskName);
+                switch (event.getType()){
+
+                    case INITIALIZED:
+                        LOG.info("wokersTask cache started");
+                        if(countdown.getCount() > 0){
+                            countdown.countDown();
+                        }
+                        break;
+
+                    case NODE_ADDED:
+
+                        String taskPath = event.getData().getPath();
+                        String taskName = taskPath.substring(taskPath.lastIndexOf("/")+1);
+
+                        if(taskPath.equals(ZooPathTree.TASK_DELETE.concat("").concat(appName)) && countdown.getCount() > 0){
+                            countdown.countDown();
+                        }
+
+                        LOG.info("type=" + event.getType() + " path=" + taskName);
+                        //TODO add to the new multiapp approaching
+                        // new DeleteTaskController().deleteTask(taskName);
+
+                    default:
+
+                        LOG.error("deleteTask cache error, unknown received value type=" + event.getType());
+                        throw new UnsupportedOperationException("Opeation not suported yet");
+                }
+            }else{
+
+                throw new UnknownError("Path doesn't exists");
             }
 
         });
 
+        //Waits until cache is ready
         try {
-
-            treeCache.start();
-
-        } catch (Exception e) {
-            LOG.error(e);
+            countdown.await();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
     }
 
     public boolean getChacheddeleteTask(String taskId){

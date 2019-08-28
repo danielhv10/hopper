@@ -18,11 +18,15 @@ package zookeeper;
 
 public enum TaskStatus {
 
-    KEYNAME("status"),
+    KEY_STATUS("status"),
+    KEY_WORKERID("workerId"),
+
 
     PENDING("Pending"),
     ASIGNED("Asigned"),
-    DONE("Done");
+    DONE("Done"),
+    FAILED("Failed"),
+    DELETED("deleted");
 
     private String text;
 

@@ -17,10 +17,6 @@
 package main;
 
 import cache.TaskModelCache;
-import controller.AssignTaskController;
-import controller.DeleteTaskController;
-import controller.TasksController;
-import controller.WorkersController;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
@@ -28,8 +24,10 @@ import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import util.PropertiesLoader;
+import zookeeper.Exception.ConnectionStablishedException;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
-import zookeeper.ZooServerConnection;
+import zookeeper.ZooBaseConnection;
 import zookeeper.ZookeeperEntity;
 
 import java.io.File;
@@ -45,12 +43,11 @@ import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
 public class Leader implements ZookeeperEntity {
 
-    public WorkersController workersController;
-    public TasksController tasksController;
-    public AssignTaskController assignTaskController;
-    public DeleteTaskController deleteTaskController;
+
     private MasterStates state;
     private final ZooKeeper zk;
+    private final ZooCuratorConnection zooCuratorConnection;
+
     private TaskModelCache taskModelCache;
     private final static Logger LOG = Logger.getLogger(main.Leader.class);
 
@@ -151,7 +148,19 @@ public class Leader implements ZookeeperEntity {
 
         //properties.forEach((k, v) -> System.out.println(k + " " + v));
 
-        this.zk = ZooServerConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
+        this.zk = ZooBaseConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
+
+        zooCuratorConnection = ZooCuratorConnection.getInstance();
+
+        try {
+
+            zooCuratorConnection.init(zookeeperHost,zookeeperPort);
+
+        } catch (ConnectionStablishedException e) {
+            LOG.info(e);
+            e.printStackTrace();
+        }
+
     }
 
     public void leaderExists(){

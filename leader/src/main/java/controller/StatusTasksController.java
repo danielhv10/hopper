@@ -14,22 +14,10 @@
  * limitations under the License.
  */
 
-package zookeeper;
+package controller;
 
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooKeeper;
+public class StatusTasksController {
 
-public class ZooController {
 
-    protected final ZooKeeper zk;
 
-    public ZooController(){
-
-        this.zk = ZooBaseConnection.getInstance().getZookeeperConnection();
-    }
-
-    public byte[] syncGetNodedata(String nodePath) throws KeeperException, InterruptedException {
-        return zk.getData(nodePath, null, null);
-
-    }
 }

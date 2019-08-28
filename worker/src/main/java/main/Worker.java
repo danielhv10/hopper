@@ -23,8 +23,10 @@ import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.json.JSONObject;
+import zookeeper.Exception.ConnectionStablishedException;
+import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
-import zookeeper.ZooServerConnection;
+import zookeeper.ZooBaseConnection;
 import zookeeper.ZookeeperEntity;
 
 import java.io.IOException;
@@ -37,6 +39,7 @@ public class Worker implements ZookeeperEntity {
     protected WorkerTasksController workerTasksController;
     private int maxAmountOfTasks;
     protected final  ZooKeeper zk;
+    protected final ZooCuratorConnection zooCuratorConnection;
     AsyncCallback.StatCallback  statusUpdateCallback;
     public final String SERVER_ID;
 
@@ -57,7 +60,17 @@ public class Worker implements ZookeeperEntity {
         this.zookeeperPort = 2181;
         this.zookeeperHost = "localhost";
 
-        zk = ZooServerConnection.getInstance().getZookeeperConnection();
+        zk = ZooBaseConnection.getInstance().getZookeeperConnection();
+        zooCuratorConnection = ZooCuratorConnection.getInstance();
+
+        try {
+
+            zooCuratorConnection.init(zookeeperHost,zookeeperPort);
+
+        } catch (ConnectionStablishedException e) {
+            LOG.info(e);
+            e.printStackTrace();
+        }
 
         statusUpdateCallback = new AsyncCallback.StatCallback() {
 
@@ -92,8 +105,17 @@ public class Worker implements ZookeeperEntity {
         this.zookeeperHost = server;
         this.appName = appName;
 
-        this.zk = ZooServerConnection.getInstance(server, port).getZookeeperConnection();
+        this.zk = ZooBaseConnection.getInstance(server, port).getZookeeperConnection();
 
+        zooCuratorConnection = ZooCuratorConnection.getInstance();
+
+        try {
+            zooCuratorConnection.init(zookeeperHost,zookeeperPort);
+
+        } catch (ConnectionStablishedException e) {
+            LOG.info(e);
+            e.printStackTrace();
+        }
         statusUpdateCallback = new AsyncCallback.StatCallback() {
 
             public void processResult(int i, String s, Object o, Stat stat) {
@@ -109,7 +131,6 @@ public class Worker implements ZookeeperEntity {
         this.status = WorkersStates.WAITING;
         this.maxAmountOfTasks = maxTasks;
         this.taskModel = task;
-
     }
 
     synchronized private void updateStatus(WorkersStates status){
