@@ -18,6 +18,7 @@ package cache;
 
 public class WorkerCacheModel {
     private int maxNumOfTasks;
+    //TODO set this value atomic
     private int numAsignedTasks;
     private final String id;
 
@@ -59,4 +60,9 @@ public class WorkerCacheModel {
     public void adddoingTask(){
         this.numAsignedTasks++;
     }
+
+    public void reduceAsignedTask(){
+        this.numAsignedTasks--;
+    }
+
 }

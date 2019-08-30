@@ -120,9 +120,9 @@ public class ZooTaskController extends ZooController {
         }, null);
     }
 
-    public void submitDeleteTask(String taskIDConter) {
+    public void submitDeleteTask(String taskIDConter, String appName) {
 
-        zk.create(ZooPathTree.TASK_DELETE.concat("/").concat(taskIDConter),
+        zk.create(ZooPathTree.TASK_DELETE.concat("/").concat(appName).concat("/").concat(taskIDConter),
                 "".getBytes(), OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
                     @Override
                     public void processResult(int rc, String path, Object ctx, String name) {
@@ -131,7 +131,7 @@ public class ZooTaskController extends ZooController {
 
                             case CONNECTIONLOSS:
 
-                                submitDeleteTask(taskIDConter);
+                                submitDeleteTask(taskIDConter, appName);
                                 break;
 
                             case OK:

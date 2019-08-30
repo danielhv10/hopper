@@ -28,6 +28,7 @@ import zookeeper.ZooPathTree;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 
@@ -179,7 +180,6 @@ public class WorkersController extends ZooController {
                 }
             }
         }, null);
-
     }
 
     public void deleteEmptyAssignemtNode(String worker) {
@@ -294,5 +294,12 @@ public class WorkersController extends ZooController {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    public Optional<WorkerCacheModel> getWorkerDatabyID(String workerId){
+
+       return workersCache.getCachedWorkerList().stream()
+               .filter(workerCacheModel -> workerCacheModel.getId().equals(workerId))
+               .findFirst();
     }
 }

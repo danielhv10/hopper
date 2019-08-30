@@ -111,10 +111,10 @@ public class TaskAPI implements TaskAPIInterface{
 
             JSONObject requestParsed = new JSONObject(request.body());
 
-            LOG.info("Adding new task to zookeeper: ".concat(requestParsed.getString("taskId")));
+            LOG.info("Deleting new task to zookeeper: ".concat(requestParsed.getString("taskId")));
             response.type("application/json");
 
-            DeleteTaskStatusResponse actionStatus = deleteTask(requestParsed.getString("taskId"));
+            DeleteTaskStatusResponse actionStatus = deleteTask(requestParsed.getString("taskId"), appName);
 
             return new JSONObject().put("status", actionStatus);
         });
@@ -158,9 +158,9 @@ public class TaskAPI implements TaskAPIInterface{
     }
 
     @Override
-    public DeleteTaskStatusResponse deleteTask(String taskId) {
-
-        zooTaskController.submitDeleteTask(taskId);
+    public DeleteTaskStatusResponse deleteTask(String taskId, String appName) {
+        //TODO control if the task exists
+        zooTaskController.submitDeleteTask(taskId, appName);
         return DeleteTaskStatusResponse.SUCCESS;
     }
 }

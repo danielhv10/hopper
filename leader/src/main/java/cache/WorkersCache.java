@@ -108,6 +108,10 @@ public class WorkersCache{
         return  false;
     }
 
+    public List<WorkerCacheModel> getCachedWorkerList(){
+        return this.workerList;
+    }
+
     public List<String> getCachedWorkerListAsString(){
 
         List<String> workerIdList = new ArrayList<String>();

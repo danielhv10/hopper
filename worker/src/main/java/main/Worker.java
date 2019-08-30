@@ -165,6 +165,7 @@ public class Worker implements ZookeeperEntity {
         json.put("maxAmountOfTasks", maxAmountOfTasks);
 
         //TODO optimize worker scafolding creation
+        //TODO add as  multiop
         try {
 
             zk.create(ZooPathTree.WORKERS + "/".concat(appName), "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);

@@ -31,5 +31,5 @@ public interface TaskAPIInterface {
 
     public Optional<String> addTask(String appName, JSONObject jsonObject) throws TaskModelException;
     public GetTaskStatusResponse getTask(String taskId);
-    public DeleteTaskStatusResponse deleteTask(String taskId);
+    public DeleteTaskStatusResponse deleteTask(String taskId, String appName);
 }

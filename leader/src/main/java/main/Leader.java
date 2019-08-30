@@ -146,8 +146,6 @@ public class Leader implements ZookeeperEntity {
         zookeeperHost = properties.getProperty("zookeeper.host");
         zookeeperPort = Integer.parseInt(properties.getProperty("zookeeper.port"));
 
-        //properties.forEach((k, v) -> System.out.println(k + " " + v));
-
         this.zk = ZooBaseConnection.getInstance(zookeeperHost,zookeeperPort).getZookeeperConnection();
 
         zooCuratorConnection = ZooCuratorConnection.getInstance();
@@ -160,7 +158,6 @@ public class Leader implements ZookeeperEntity {
             LOG.info(e);
             e.printStackTrace();
         }
-
     }
 
     public void leaderExists(){

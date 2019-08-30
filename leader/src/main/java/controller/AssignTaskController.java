@@ -162,10 +162,11 @@ public class AssignTaskController extends ZooController {
                             LOG.info(taskName);
 
                             //Delete task from tasks
+                            //TODO delete app from task at the same time when is created.
                             tasksController.deleteTask(app.getAppName(),taskName);
                             //Set task status to asigned
                             setStatusAsignedTask(app.getAppName(), taskName, workerCacheModel.getId());
-                            //TODO control status if leader dead in this point of execution
+                            //TODO control status if leader dead in this point of execution.
                             //Delete task from assignment cache
                             endAssignment(taskName);
 

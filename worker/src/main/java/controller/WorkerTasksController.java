@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
+
 
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
@@ -247,7 +247,8 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         System.out.println(assingPath);
         System.out.println(statusPath);
         byte statusDatatoUpdate[] = "{".concat(TaskStatus.KEY_STATUS.getText()).concat(": ").
-                                    concat(TaskStatus.DONE.getText()).concat("}").getBytes();
+                                    concat(TaskStatus.DONE.getText()).concat(", ")
+                .concat(TaskStatus.KEY_WORKERID.getText()).concat(": ").concat(worker.SERVER_ID).concat("}").getBytes();
 
         try {
 
