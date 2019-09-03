@@ -18,8 +18,6 @@ package controller;
 
 import cache.AssignTaskCache;
 import cache.WorkerCacheModel;
-import com.oracle.tools.packager.Log;
-import javafx.concurrent.Task;
 import main.APP;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
@@ -86,7 +84,7 @@ public class AssignTaskController extends ZooController {
                     case OK:
 
                         if(children != null){
-                            Log.info("new task added in app: ".concat(app.getAppName()));
+                            LOG.info("new task added in app: ".concat(app.getAppName()));
                             assignTasks(children);
                         }
                         break;
