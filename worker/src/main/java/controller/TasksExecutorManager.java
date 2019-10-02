@@ -16,11 +16,9 @@
 
 package controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import model.HopperTask;
 import org.apache.log4j.Logger;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Timer;
@@ -82,7 +80,7 @@ class TasksExecutorManager {
         }, 0, STATISTICS_REFRESH_MILLIS);
     }
 
-    public static TasksExecutorManager getInstance() {
+    static TasksExecutorManager getInstance() {
         if (INSTANCE == null) {
             synchronized (TasksExecutorManager.class) {
                 if (INSTANCE == null) {

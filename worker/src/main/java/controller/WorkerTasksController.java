@@ -65,8 +65,10 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         //TODO SOLVE bad pattern in the object creation.
         tem = TasksExecutorManager.getInstance();
         tem.addTasksListener(this);//FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
-        /*CompletableFuture.runAsync(() -> {
+        CompletableFuture.runAsync(() -> {
             while (true) {
+                //TODO Aquí es donde se puede procesar periódicamente la escritura al directorio de Zookeeper
+                //zk.setData(ZooPathTree.WORKERS.concat("/").concat(worker.SERVER_ID), );
                 LOG.info("Max delay in queue: " + tem.getInHeadTaskDelay());
                 try {
                     Thread.sleep(500);
@@ -74,7 +76,7 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
                     e.printStackTrace();
                 }
             }
-        });*/
+        });
         this.worker = worker;
 
         try {
