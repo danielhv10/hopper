@@ -72,7 +72,6 @@ class TasksExecutorManager {
     private TasksExecutorManager() {
         callbackPool = Executors.newCachedThreadPool();
         verboseScheduledPool = new VerboseScheduledThreadPoolExecutor(deduceCorePoolSize());
-        //Para facilitar la media móvil de estadística del delay
         timer = new Timer();
         timer.scheduleAtFixedRate(new TimerTask() {
 
@@ -95,7 +94,7 @@ class TasksExecutorManager {
     }
 
     private int deduceCorePoolSize() {
-        return 1; //TODO controlar el tamaño dinámicamente
+        return Runtime.getRuntime().availableProcessors();
     }
 
     void addTasksListener(TasksListener listener) {
@@ -106,11 +105,7 @@ class TasksExecutorManager {
         tasksListeners.remove(listener);
     }
 
-    //TODO Ver qué hacemos con esas excepciones(control in zookeeperValue)
     void submitTask(final HopperTask task, final Class taskExecutor) throws IllegalAccessException, InstantiationException {
-        if (verboseScheduledPool == null) {
-            throw new RuntimeException("'setThreads()' must be called first");
-        }
 
         TaskExecutor workerTaskExecutor = (TaskExecutor) taskExecutor.newInstance();
 
