@@ -16,10 +16,10 @@
 
 package controller;
 
-import util.Tuple;
+import model.HopperTask;
 
 @FunctionalInterface
-public interface TaskExecutor<T> {
+public interface TaskExecutor<T extends HopperTask> {
 
-    Tuple<String, Boolean> doTask(T task);
+    void doTask(T task);
 }

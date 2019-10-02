@@ -16,26 +16,29 @@
 
 package controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import main.Worker;
+import model.HopperTask;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.log4j.Logger;
-import org.apache.zookeeper.*;
+import org.apache.zookeeper.AsyncCallback;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.Op;
 import org.apache.zookeeper.data.Stat;
-import util.Tuple;
 import zookeeper.TaskStatus;
 import zookeeper.ZooController;
 import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-
 
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
@@ -45,27 +48,33 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
     private final Worker worker;
 
-    private  CuratorFramework curatorClient;
-    private  TreeCache treeCache;
+    private CuratorFramework curatorClient;
+    private TreeCache treeCache;
 
     private TasksExecutorManager tem;
 
     @Override
-    public void onCompleted(Tuple<String, Tuple<String, Boolean>> result) {
-
-        /*Aquí llega si se COMPLETÓ o se FALLÓ la tarea y la propia TAREA como Object, a la que se le puede hacer Downcasting
-        para recuperar la original, es responsabilidad del TaskExecutor devolver bien en 'boolean doTask(T task)'*/
-        LOG.info(String.format("%s || %s %s", result.key, result.value.key, result.value.value));
+    public void onCompleted(String taskId) {
+        taskDone(taskId);
+        LOG.info("[Finished task] " + taskId);
     }
 
-
-    public WorkerTasksController(Worker worker){
+    public WorkerTasksController(Worker worker) {
         CountDownLatch countdown = new CountDownLatch(1);
 
         //TODO SOLVE bad pattern in the object creation.
-        tem = TasksExecutorManager.getInstance(this);
-        tem.setThreads(worker.getMaxAmountOfTasks());
-        tem.addTasksListener(this);
+        tem = TasksExecutorManager.getInstance();
+        tem.addTasksListener(this);//FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
+        /*CompletableFuture.runAsync(() -> {
+            while (true) {
+                LOG.info("Max delay in queue: " + tem.getInHeadTaskDelay());
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });*/
         this.worker = worker;
 
         try {
@@ -88,29 +97,31 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         treeCache.getListenable().addListener((c, event) -> {
 
             if(event.getData() != null) {
-
                 switch (event.getType()) {
-
                     case INITIALIZED:
-                        LOG.info("wokersTask cache started");
+                        LOG.info("Worker task cache started");
                         countdown.countDown();
                         break;
-
 
                     case NODE_ADDED:
                         LOG.info("type=" + event.getType() + " path=" + event.getData().getPath());
                         if (!new String(event.getData().getData()).equals("Idle")) {
-                            tem.submit(event.getData().getData(), worker.getExecutorModel(), worker.getTaskModel());
+                            HopperTask upcastedTask = (HopperTask) new ObjectMapper().readValue(event.getData().getData(), worker.getTaskModel());
+                            tem.submitTask(upcastedTask, worker.getExecutorModel());
                         }
                         break;
 
                     case NODE_REMOVED:
-                        LOG.info("Asigned task ".concat(event.getData().getPath()).concat(" deleted"));
+                        String taskPath = event.getData().getPath();
+                        String taskId = taskPath.substring(taskPath.lastIndexOf("/") + 1);
+                        LOG.info("Deleted task ".concat(taskPath));
+                        //TODO Parametrizable en aplicación si interrumpe o no
+                        tem.cancelTask(taskId, true);//TODO Controlar si fue efectivamente cancelada o no
                         break;
 
                     default:
-                        LOG.error("operation not supported" + event.getType());
-                        throw new UnsupportedOperationException("Opeation not suported yet");
+                        LOG.error("Operation not supported" + event.getType());
+                        throw new UnsupportedOperationException("Operation not supported yet");
                 }
 
             }else{
@@ -217,9 +228,8 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
                     case OK:
 
                         try {
-
-                            tem.submit(taskData, worker.getExecutorModel(), worker.getTaskModel());
-
+                            HopperTask upcastedTask = (HopperTask) new ObjectMapper().readValue(taskData, worker.getTaskModel());
+                            tem.submitTask(upcastedTask, worker.getExecutorModel());
                         } catch (IllegalAccessException e) {
                             e.printStackTrace();
                         } catch (InstantiationException e) {

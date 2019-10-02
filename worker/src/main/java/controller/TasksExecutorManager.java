@@ -19,92 +19,138 @@ package controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import model.HopperTask;
 import org.apache.log4j.Logger;
-import util.Tuple;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.*;
 
-public class TasksExecutorManager {
+class TasksExecutorManager {
+
+    class VerboseScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+
+        VerboseScheduledThreadPoolExecutor(int i) {
+
+            super(i);
+        }
+
+        long getQueueHeadDelay(TimeUnit timeUnit) {
+            Delayed head = (Delayed) super.getQueue().peek();
+            if (head == null) {
+                return 0;
+            }
+            return head.getDelay(timeUnit);
+        }
+    }
+
+    @FunctionalInterface
+    interface TasksListener {
+
+        void onCompleted(String taskId);
+    }
+
+
 
     private final static Logger LOG = Logger.getLogger(TasksExecutorManager.class);
 
-    private final WorkerTasksController workerTasksController;
-
-    public interface TasksListener {
-
-        void onCompleted(Tuple<String, Tuple<String, Boolean>> result);
-    }
-
     private static volatile TasksExecutorManager INSTANCE = null;
-    private ExecutorService pool = null;
-    //TODO not used var
-    private int threads;
 
-    private final ArrayList<TasksListener> tasksListeners = new ArrayList<>();
+    private final VerboseScheduledThreadPoolExecutor verboseScheduledPool;
+    private final ExecutorService callbackPool;
 
-    private TasksExecutorManager(WorkerTasksController workerTasksController) {
-        this.workerTasksController = workerTasksController;
+    private final HashSet<TasksListener> tasksListeners = new HashSet<>();
+    private final Hashtable<String, ScheduledFuture> currentTasks = new Hashtable<>();
+
+    //Teoricamente al ser solo para lectura y ser un solo hilo el que lo actualiza, se nos garantiza la última copia en memoria.
+    private volatile long inHeadTaskDelay = 0;
+    private static final short STATISTICS_REFRESH_MILLIS = 1000;
+    private final Timer timer;
+
+
+    private TasksExecutorManager() {
+        callbackPool = Executors.newCachedThreadPool();
+        verboseScheduledPool = new VerboseScheduledThreadPoolExecutor(deduceCorePoolSize());
+        //Para facilitar la media móvil de estadística del delay
+        timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+
+            @Override
+            public void run() {
+                inHeadTaskDelay = verboseScheduledPool.getQueueHeadDelay(TimeUnit.MILLISECONDS);
+            }
+        }, 0, STATISTICS_REFRESH_MILLIS);
     }
 
-    public static TasksExecutorManager getInstance(WorkerTasksController workerTasksController) {
+    public static TasksExecutorManager getInstance() {
         if (INSTANCE == null) {
             synchronized (TasksExecutorManager.class) {
                 if (INSTANCE == null) {
-                    INSTANCE = new TasksExecutorManager(workerTasksController);
+                    INSTANCE = new TasksExecutorManager();
                 }
             }
         }
         return INSTANCE;
     }
 
-    public void setThreads(int threads) {
-        this.threads = threads;
-        pool = Executors.newFixedThreadPool(threads);
+    private int deduceCorePoolSize() {
+        return 1; //TODO controlar el tamaño dinámicamente
     }
 
-    public void addTasksListener(TasksListener listener) {
+    void addTasksListener(TasksListener listener) {
         tasksListeners.add(listener);
     }
 
-    public void removeTasksListener(TasksListener listener) {
+    void removeTasksListener(TasksListener listener) {
         tasksListeners.remove(listener);
     }
 
-    //TODO FIXME Ver qué hacemos con esas excepciones(control in zookeeperValue)
-    public void submit(byte[] serializedTaskObject, final Class taskExecutor, final Class taskModel) throws IllegalAccessException, InstantiationException, IOException {
-        if (pool == null) {
+    //TODO Ver qué hacemos con esas excepciones(control in zookeeperValue)
+    void submitTask(final HopperTask task, final Class taskExecutor) throws IllegalAccessException, InstantiationException {
+        if (verboseScheduledPool == null) {
             throw new RuntimeException("'setThreads()' must be called first");
         }
 
-        TaskExecutor workerTasksControllerListener = (TaskExecutor) taskExecutor.newInstance();
-        Object upcastedTask = new ObjectMapper().readValue(serializedTaskObject, taskModel);
+        TaskExecutor workerTaskExecutor = (TaskExecutor) taskExecutor.newInstance();
 
-        CompletableFuture.supplyAsync(new Supplier<Tuple<String, Tuple<String, Boolean>>>() {
-
-            @Override
-            public Tuple<String, Tuple<String, Boolean>> get() {
-                return new Tuple<>(new String(serializedTaskObject), workerTasksControllerListener.doTask(upcastedTask));
+        CompletableFuture.runAsync(() -> {
+            long period = task.getPollingInterval();
+            ScheduledFuture auxScheduledFuture;
+            if (period <= 0) {
+                auxScheduledFuture = verboseScheduledPool.schedule(() -> workerTaskExecutor.doTask(task), 0, TimeUnit.MILLISECONDS);
+            } else {
+                auxScheduledFuture = verboseScheduledPool.scheduleWithFixedDelay(() -> workerTaskExecutor.doTask(task), 0, period, TimeUnit.MILLISECONDS);
             }
-        }, pool).thenAccept(new Consumer<Tuple<String, Tuple<String, Boolean>>>() {
-
-            @Override
-            public void accept(Tuple<String, Tuple<String, Boolean>> result) {
-
-                LOG.info("Task finished");
-
-                workerTasksController.taskDone(((HopperTask)upcastedTask).getId());
-
-                tasksListeners.forEach(l -> {
-                    l.onCompleted(result);
-                });
+            currentTasks.put(task.getId(), auxScheduledFuture);
+            try {
+                auxScheduledFuture.get();
+                tasksListeners.forEach(l -> l.onCompleted(task.getId()));
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();//TODO Gestionar excepción
             }
-        });
+        }, callbackPool);
     }
 
+    boolean cancelTask(String taskId, boolean mayInterruptIfRunning) {
+        boolean canceled;
+        ScheduledFuture auxFuture = currentTasks.get(taskId);
+        if (auxFuture != null) {
+            //Si "cancel()" falla es porque o ya se canceló o está completada; también puede fallar por alguna otra cosa, pero eso no lo controlamos.
+            if (!(canceled = auxFuture.cancel(mayInterruptIfRunning))) {
+                //Si fue cancelada o está hecha, damos por cancelada
+                if (auxFuture.isCancelled() || auxFuture.isDone()) {
+                    canceled = true;
+                }
+            }
+        } else {
+            //Si la tarea no existe, devuelve como que está cancelada
+            canceled = true;
+        }
+        return canceled;
+    }
 
+    long getInHeadTaskDelay() {
+        return inHeadTaskDelay;
+    }
 }

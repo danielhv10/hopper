@@ -23,8 +23,7 @@ import org.apache.log4j.Logger;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 //TODO manage cath exceptions
 //TODO add splicit method params call into getmethod.
@@ -67,7 +66,8 @@ public class APITaskcontroller {
 
     public static void setTaskfeature(String k, Object v, Object taskModel) throws TaskModelException {
 
-        Method methodList[] =  taskModel.getClass().getDeclaredMethods();
+        ArrayList<Method> methodList =  new ArrayList(Arrays.asList(taskModel.getClass().getDeclaredMethods()));
+        methodList.addAll(Arrays.asList(taskModel.getClass().getSuperclass().getDeclaredMethods()));
 
         System.out.println(v.getClass().getName());
 
@@ -75,18 +75,17 @@ public class APITaskcontroller {
 
         String methodName = "set".concat(feature);
 
-
         LOG.info("adding feature ".concat(methodName));
         boolean found = false;
 
-        for(int i = 0; i < methodList.length; ++i){
+        for(int i = 0; i < methodList.size(); ++i){
 
-            if(methodList[i].getName().equals(methodName)){
+            if(methodList.get(i).getName().equals(methodName)){
 
                 found = true;
                 try {
 
-                    methodList[i].invoke(taskModel,v);
+                    methodList.get(i).invoke(taskModel,v);
 
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
@@ -98,7 +97,7 @@ public class APITaskcontroller {
         }
 
         if(!found){
-            throw new TaskModelException(feature.concat(" not defined in task mmodel"));
+            throw new TaskModelException(feature.concat(" not defined in task model"));
         }
     }
 }

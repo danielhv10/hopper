@@ -21,14 +21,23 @@ import java.io.Serializable;
 public abstract class HopperTask implements Serializable {
 
     @Base
-    private  String id;
+    private String id;
     @Base
     private String appName;
     @Base
     private TaskStatus taskStatus;
 
-    public HopperTask() {
+    public long getPollingInterval() {
+        return pollingInterval;
     }
+
+    public void setPollingInterval(long pollingInterval) {
+        this.pollingInterval = pollingInterval;
+    }
+
+    private long pollingInterval = 0;
+
+    public HopperTask() {}
 
     public String getId() {
         return id;
