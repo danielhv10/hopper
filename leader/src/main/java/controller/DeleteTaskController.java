@@ -16,8 +16,9 @@
 
 package controller;
 
-import cache.WorkerCacheModel;
+
 import main.APP;
+import model.ZooWorkerDataModel;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
@@ -140,9 +141,10 @@ public class DeleteTaskController extends ZooController {
                               Op.delete(statusPath, statusChildData.get().getStat().getVersion()),
                               Op.delete(deletePath, -1)));
 
-                      Optional<WorkerCacheModel> workerDataOptional = app.getWorkersController().getWorkerDatabyID(workerId);
+                      Optional<ZooWorkerDataModel> workerDataOptional = app.getWorkersController().getWorkerDatabyID(workerId);
                       if(workerDataOptional.isPresent()){
-                          workerDataOptional.get().reduceAsignedTask();
+                          //TODO do it atomicly
+                          workerDataOptional.get().setNumAsignedTasks(workerDataOptional.get().getNumAsignedTasks() -1);
                           app.getWorkersController().doneAssignmentTask(workerDataOptional.get());
                           app.getAssignTaskController().getZookeeperTasks(); //reasigntask if there are new queued.
 

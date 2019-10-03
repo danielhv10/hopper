@@ -17,8 +17,8 @@
 package controller;
 
 import cache.AssignTaskCache;
-import cache.WorkerCacheModel;
 import main.APP;
+import model.ZooWorkerDataModel;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
@@ -128,42 +128,42 @@ public class AssignTaskController extends ZooController {
     }
 
 
-    public  void createAssignment(WorkerCacheModel workerCacheModel, String taskName, byte[] data) {
+    public  void createAssignment(ZooWorkerDataModel workerCacheModel, String taskName, byte[] data) {
 
-        String path = zooAssignmentPath.concat("/").concat(workerCacheModel.getId()).concat("/").concat(taskName);
+        String path = zooAssignmentPath.concat("/").concat(workerCacheModel.getWorkerId()).concat("/").concat(taskName);
 
 
         if (startAssignment(taskName)){
 
             super.zk.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, new AsyncCallback.StringCallback() {
 
-                @Override
-                public void processResult(int i, String s, Object o, String s1) {
-                    TasksController tasksController = new TasksController();
+                                @Override
+                                public void processResult(int i, String s, Object o, String s1) {
+                                    TasksController tasksController = new TasksController();
 
-                    LOG.info(path);
-                    //Get the taskName without the path.
-                    String taskName = null;
-                    String[] parts = path.split("/");
-                    taskName = parts[parts.length -1];
+                                    LOG.info(path);
+                                    //Get the taskName without the path.
+                                    String taskName = null;
+                                    String[] parts = path.split("/");
+                                    taskName = parts[parts.length -1];
 
-                    switch(KeeperException.Code.get(i)) {
+                                    switch(KeeperException.Code.get(i)) {
 
-                        case CONNECTIONLOSS:
+                                        case CONNECTIONLOSS:
 
-                            createAssignment(workerCacheModel, taskName, data);
-                            break;
+                                            createAssignment(workerCacheModel, taskName, data);
+                                            break;
 
-                        case OK:
+                                        case OK:
 
-                            LOG.info("Task assigned correctly: " + taskName);
-                            LOG.info(taskName);
+                                            LOG.info("Task assigned correctly: " + taskName);
+                                            LOG.info(taskName);
 
                             //Delete task from tasks
                             //TODO delete app from task at the same time when is created.
                             tasksController.deleteTask(app.getAppName(),taskName);
                             //Set task status to asigned
-                            setStatusAsignedTask(app.getAppName(), taskName, workerCacheModel.getId());
+                            setStatusAsignedTask(app.getAppName(), taskName, workerCacheModel.getWorkerId());
                             //TODO control status if leader dead in this point of execution.
                             //Delete task from assignment cache
                             endAssignment(taskName);
@@ -210,7 +210,7 @@ public class AssignTaskController extends ZooController {
 
                             case OK:
 
-                                    WorkerCacheModel designatedWorker = app.getWorkersController().bookIdleWorker();
+                                    ZooWorkerDataModel designatedWorker = app.getWorkersController().bookIdleWorker();
 
                                     createAssignment(designatedWorker, (String) o, data);
 

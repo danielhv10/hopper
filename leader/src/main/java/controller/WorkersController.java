@@ -16,9 +16,10 @@
 
 package controller;
 
-import cache.WorkerCacheModel;
 import cache.WorkersCache;
+import com.google.gson.Gson;
 import main.APP;
+import model.ZooWorkerDataModel;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
@@ -236,15 +237,9 @@ public class WorkersController extends ZooController {
 
                             case OK:
 
-                                System.out.println(new String(data, StandardCharsets.UTF_8));
-
-
-                                JSONObject json = new JSONObject(new String(data, StandardCharsets.UTF_8));
-                                int maxAmountOfTasks = json.getInt("maxAmountOfTasks");
-                                int numAsignedTasks = json.getInt("numAsignedTasks");
-
-
-                                workersCache.addNewChildren(new WorkerCacheModel(e, maxAmountOfTasks, numAsignedTasks));
+                                workersCache.addNewChildren(
+                                        new Gson().fromJson(
+                                                new String(data, StandardCharsets.UTF_8),ZooWorkerDataModel.class));
 
                                 break;
 
@@ -261,33 +256,31 @@ public class WorkersController extends ZooController {
     }
 
     //TODO CONTROL NO UP WORKERS
-    public synchronized WorkerCacheModel bookIdleWorker() {
+    public synchronized ZooWorkerDataModel bookIdleWorker() {
 
-        List<WorkerCacheModel> idleWorkerList = this.workersCache.getCachedIddleWorkerLIstAsString();
+        List<ZooWorkerDataModel> idleWorkerList = this.workersCache.getCachedIddleWorkerLIstAsString();
 
         LOG.info(new StringBuilder().append("Eligiendo entre ").append(idleWorkerList.size()).append(" workers"));
 
         int worker = new Random().nextInt(idleWorkerList.size());
 
-        WorkerCacheModel designatedWorker = idleWorkerList.get(worker);
-
-        designatedWorker.adddoingTask();
+        ZooWorkerDataModel designatedWorker = idleWorkerList.get(worker);
+        //TODO do it atomicly
+        designatedWorker.setNumAsignedTasks(designatedWorker.getNumAsignedTasks() + 1);
 
         return designatedWorker;
 
     }
 
     //TODO control exceptions
-    public synchronized void doneAssignmentTask(WorkerCacheModel workerCacheModel) {
+    public synchronized void doneAssignmentTask(ZooWorkerDataModel workerCacheModel) {
 
-        String workerPath = zooWorkersPath.concat("/").concat(workerCacheModel.getId());
+        String workerPath = zooWorkersPath.concat("/").concat(workerCacheModel.getWorkerId());
 
-        JSONObject json = new JSONObject();
-        json.put("maxAmountOfTasks", workerCacheModel.getMaxNumOfTasks());
-        json.put("numAsignedTasks", workerCacheModel.getNumAsignedTasks());
 
         try {
-            zk.setData(workerPath, json.toString().getBytes(), -1);
+            //TODO do it asyn in order to control different that cache
+            zk.setData(workerPath, new Gson().toJson(workerCacheModel).getBytes(), -1);
 
         } catch (KeeperException e) {
             e.printStackTrace();
@@ -296,10 +289,10 @@ public class WorkersController extends ZooController {
         }
     }
 
-    public Optional<WorkerCacheModel> getWorkerDatabyID(String workerId){
+    public Optional<ZooWorkerDataModel> getWorkerDatabyID(String workerId){
 
        return workersCache.getCachedWorkerList().stream()
-               .filter(workerCacheModel -> workerCacheModel.getId().equals(workerId))
+               .filter(workerCacheModel -> workerCacheModel.getWorkerId().equals(workerId))
                .findFirst();
     }
 }

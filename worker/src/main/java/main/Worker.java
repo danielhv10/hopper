@@ -16,9 +16,12 @@
 
 package main;
 
+import com.google.gson.Gson;
 import controller.TaskController;
 import controller.WorkerTasksController;
+import controller.ZooWorkerController;
 import model.TaskProperties;
+import model.ZooWorkerDataModel;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
@@ -36,7 +39,10 @@ public class Worker implements ZookeeperEntity {
     private final static Logger LOG = Logger.getLogger(Worker.class);
 
     protected WorkersStates status = null;
-    protected WorkerTasksController workerTasksController;
+
+    private WorkerTasksController workerTasksController;
+    private ZooWorkerController zooWorkerController;
+
     private int maxAmountOfTasks;
     protected final  ZooKeeper zk;
     protected final ZooCuratorConnection zooCuratorConnection;
@@ -159,10 +165,7 @@ public class Worker implements ZookeeperEntity {
 
         LOG.info("Registering worker-".concat(ZookeeperEntity.SERVER_ID));
 
-        JSONObject json = new JSONObject();
-
-        json.put("numAsignedTasks",0);
-        json.put("maxAmountOfTasks", maxAmountOfTasks);
+        ZooWorkerDataModel zooWorkerDataModel = new ZooWorkerDataModel("worker-".concat(SERVER_ID),0,maxAmountOfTasks,0);
 
         //TODO optimize worker scafolding creation
         //TODO add as  multiop
@@ -177,19 +180,20 @@ public class Worker implements ZookeeperEntity {
             e.printStackTrace();
         }
 
-        createWorkerPath(json);
+        createWorkerPath(new Gson().toJson(zooWorkerDataModel));
 
         createAssigngPath();
 
         createTaskModel();
-
+        //TODO solve posible distributed locl
+        this.zooWorkerController = new ZooWorkerController(SERVER_ID);
         this.workerTasksController = new WorkerTasksController(this);
     }
 
 
-    private void createWorkerPath(JSONObject json){
+    private void createWorkerPath(String json){
 
-        zk.create(ZooPathTree.WORKERS + "/" + this.appName + "/worker-" + ZookeeperEntity.SERVER_ID, json.toString().getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL, new AsyncCallback.StringCallback(){
+        zk.create(ZooPathTree.WORKERS + "/" + this.appName + "/worker-" + ZookeeperEntity.SERVER_ID, json.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL, new AsyncCallback.StringCallback(){
 
             @Override
             public void processResult(int i, String s, Object o, String s1) {
@@ -318,6 +322,10 @@ public class Worker implements ZookeeperEntity {
 
     public String getAppName() {
         return appName;
+    }
+
+    public ZooWorkerController getZooWorkerController() {
+        return zooWorkerController;
     }
 }
 

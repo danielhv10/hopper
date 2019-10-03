@@ -17,8 +17,10 @@
 package controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
 import main.Worker;
 import model.HopperTask;
+import model.ZooWorkerDataModel;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
@@ -61,15 +63,30 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
 
     public WorkerTasksController(Worker worker) {
         CountDownLatch countdown = new CountDownLatch(1);
-
+        Gson gson = new Gson();
         //TODO SOLVE bad pattern in the object creation.
         tem = TasksExecutorManager.getInstance();
         tem.addTasksListener(this);//FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
         CompletableFuture.runAsync(() -> {
             while (true) {
-                //TODO Aquí es donde se puede procesar periódicamente la escritura al directorio de Zookeeper
-                //zk.setData(ZooPathTree.WORKERS.concat("/").concat(worker.SERVER_ID), );
+
                 LOG.info("Max delay in queue: " + tem.getInHeadTaskDelay());
+                ChildData currentWorkerData = worker.getZooWorkerController().getCurrentWorkerData();
+                ZooWorkerDataModel currentWorkerDataModel = gson.fromJson(
+                        new String(currentWorkerData.getData()), ZooWorkerDataModel.class);
+
+                currentWorkerDataModel.setHeadTaskDelay(tem.getInHeadTaskDelay());
+
+                try {
+                    //TODO set async znodeEpoch to control update lock
+                    zk.setData(ZooPathTree.WORKERS.concat("/").concat(worker.SERVER_ID),gson.toJson(currentWorkerData).getBytes(),-1);
+
+                } catch (KeeperException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {

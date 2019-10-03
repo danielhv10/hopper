@@ -27,14 +27,6 @@ public abstract class HopperTask implements Serializable {
     @Base
     private TaskStatus taskStatus;
 
-    public long getPollingInterval() {
-        return pollingInterval;
-    }
-
-    public void setPollingInterval(long pollingInterval) {
-        this.pollingInterval = pollingInterval;
-    }
-
     private long pollingInterval = 0;
 
     public HopperTask() {}
@@ -63,5 +55,11 @@ public abstract class HopperTask implements Serializable {
         this.taskStatus = taskStatus;
     }
 
+    public long getPollingInterval() {
+        return pollingInterval;
+    }
 
+    public void setPollingInterval(long pollingInterval) {
+        this.pollingInterval = pollingInterval;
+    }
 }

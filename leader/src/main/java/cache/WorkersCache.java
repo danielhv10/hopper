@@ -16,6 +16,7 @@
 
 package cache;
 
+import model.ZooWorkerDataModel;
 import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
@@ -26,17 +27,17 @@ public class WorkersCache{
 
     protected final static Logger LOG = Logger.getLogger(WorkersCache.class);
 
-    private List<WorkerCacheModel> workerList;
+    private List<ZooWorkerDataModel> workerList;
 
 
     public WorkersCache(){
 
-        this.workerList = new ArrayList<WorkerCacheModel>();
+        this.workerList = new ArrayList<ZooWorkerDataModel>();
     }
 
 
     public void restartCache(){
-        this.workerList = new ArrayList<WorkerCacheModel>();
+        this.workerList = new ArrayList<ZooWorkerDataModel>();
     }
 
 
@@ -44,9 +45,9 @@ public class WorkersCache{
 
         List<String> workerCheck = new ArrayList<String>();
 
-        for(WorkerCacheModel workerToProcess : this.workerList){
+        for(ZooWorkerDataModel workerToProcess : this.workerList){
 
-            workerCheck.add(workerToProcess.getId());
+            workerCheck.add(workerToProcess.getWorkerId());
         }
 
         for(String workerToProcess : children){
@@ -75,7 +76,7 @@ public class WorkersCache{
 
 
     //TODO manage asynchronously
-    public synchronized void addNewChildren(WorkerCacheModel worker) {
+    public synchronized void addNewChildren(ZooWorkerDataModel worker) {
 
         this.workerList.add(worker);
     }
@@ -86,7 +87,7 @@ public class WorkersCache{
         boolean found = false;
 
         for(int i = 0; i < this.workerList.size(); ++i){
-            if(this.workerList.get(i).getId().equals(worker)){
+            if(this.workerList.get(i).getWorkerId().equals(worker)){
                 this.workerList.remove(i);
                 found = true;
             }
@@ -100,15 +101,15 @@ public class WorkersCache{
 
     private boolean childrenExists(String children){
 
-        for(WorkerCacheModel worker : this.workerList){
-            if(worker.getId().equals(children)){
+        for(ZooWorkerDataModel worker : this.workerList){
+            if(worker.getWorkerId().equals(children)){
                 return true;
             }
         }
         return  false;
     }
 
-    public List<WorkerCacheModel> getCachedWorkerList(){
+    public List<ZooWorkerDataModel> getCachedWorkerList(){
         return this.workerList;
     }
 
@@ -116,19 +117,19 @@ public class WorkersCache{
 
         List<String> workerIdList = new ArrayList<String>();
 
-        for(WorkerCacheModel worker: this.workerList){
-            workerIdList.add(worker.getId());
+        for(ZooWorkerDataModel worker: this.workerList){
+            workerIdList.add(worker.getWorkerId());
         }
 
         return workerIdList;
     }
 
-    public synchronized List<WorkerCacheModel> getCachedIddleWorkerLIstAsString(){
+    public synchronized List<ZooWorkerDataModel> getCachedIddleWorkerLIstAsString(){
 
-        List<WorkerCacheModel> workerIddleList = new ArrayList<WorkerCacheModel>();
+        List<ZooWorkerDataModel> workerIddleList = new ArrayList<ZooWorkerDataModel>();
 
         this.workerList.forEach((e) ->{
-            if (e.getNumAsignedTasks() < e.getMaxNumOfTasks() ){
+            if (e.getNumAsignedTasks() < e.getMaxAmountOfTasks() ){
                 workerIddleList.add(e);
             }
         });
