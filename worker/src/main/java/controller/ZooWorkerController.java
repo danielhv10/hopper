@@ -17,18 +17,19 @@
 package controller;
 
 
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import model.ZooWorkerDataModel;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.log4j.Logger;
+import org.apache.zookeeper.data.Stat;
 import zookeeper.Exception.ConnectionNotExistsException;
 import zookeeper.ZooController;
 import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
+
+import java.util.Optional;
 
 public class ZooWorkerController extends ZooController {
 
@@ -36,20 +37,35 @@ public class ZooWorkerController extends ZooController {
 
     private CuratorFramework curatorClient;
     private NodeCache workerDatacache;
+    //TODO set it synchronized
+    private ChildData zooWorkerData;
 
-    public ZooWorkerController(String workerId){
+    public ZooWorkerController(String workerId, String appName){
 
         try {
 
             this.curatorClient = ZooCuratorConnection.getInstance().getCuratorClientConnection();
 
-            workerDatacache = new NodeCache(curatorClient, ZooPathTree.WORKERS.concat("/").concat(workerId));
+            workerDatacache = new NodeCache(curatorClient, ZooPathTree.WORKERS.concat("/")
+                                                            .concat(appName).concat("/").concat(workerId));
 
+            workerDatacache.getListenable().addListener(() -> {
+
+                try {
+                    if (workerDatacache.getCurrentData() != null) {
+
+                        zooWorkerData = workerDatacache.getCurrentData();
+                    }
+                } catch (Exception e) {
+                    LOG.error(e);
+                    LOG.error("Error while processing config file change event. message={}");
+                }
+            });
 
             //TODO control the correct start of the cache subscribing to the listener
             workerDatacache.start();
 
-
+            zooWorkerData = workerDatacache.getCurrentData();
         } catch (ConnectionNotExistsException e) {
             LOG.error(e);
             e.printStackTrace();
@@ -57,11 +73,11 @@ public class ZooWorkerController extends ZooController {
             LOG.error(e);
             e.printStackTrace();
         }
+
     }
 
-    public ChildData getCurrentWorkerData(){
+    public Optional<ChildData> getCurrentWorkerData(){
 
-        return workerDatacache.getCurrentData();
-
+        return  Optional.ofNullable(zooWorkerData);
     }
 }

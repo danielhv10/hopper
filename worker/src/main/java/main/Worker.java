@@ -186,7 +186,7 @@ public class Worker implements ZookeeperEntity {
 
         createTaskModel();
         //TODO solve posible distributed locl
-        this.zooWorkerController = new ZooWorkerController(SERVER_ID);
+        this.zooWorkerController = new ZooWorkerController("worker-".concat(SERVER_ID),appName);
         this.workerTasksController = new WorkerTasksController(this);
     }
 

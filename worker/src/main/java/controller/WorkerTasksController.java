@@ -16,6 +16,7 @@
 
 package controller;
 
+import afu.org.checkerframework.checker.oigj.qual.O;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import main.Worker;
@@ -62,39 +63,46 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
     }
 
     public WorkerTasksController(Worker worker) {
+        this.worker = worker;
         CountDownLatch countdown = new CountDownLatch(1);
         Gson gson = new Gson();
         //TODO SOLVE bad pattern in the object creation.
         tem = TasksExecutorManager.getInstance();
-        tem.addTasksListener(this);//FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
+        tem.addTasksListener(this);//TODO FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
+
         CompletableFuture.runAsync(() -> {
             while (true) {
 
                 LOG.info("Max delay in queue: " + tem.getInHeadTaskDelay());
-                ChildData currentWorkerData = worker.getZooWorkerController().getCurrentWorkerData();
-                ZooWorkerDataModel currentWorkerDataModel = gson.fromJson(
-                        new String(currentWorkerData.getData()), ZooWorkerDataModel.class);
 
-                currentWorkerDataModel.setHeadTaskDelay(tem.getInHeadTaskDelay());
+                worker.getZooWorkerController().getCurrentWorkerData().ifPresent(childData ->{
+                    LOG.info("DENTROO");
+                    ZooWorkerDataModel currentWorkerDataModel = gson.fromJson(
+                            new String(childData.getData()), ZooWorkerDataModel.class);
+
+                    currentWorkerDataModel.setHeadTaskDelay(tem.getInHeadTaskDelay());
+
+                    try {
+                        //TODO set async znodeEpoch to control update lock
+                        zk.setData(ZooPathTree.WORKERS.concat("/")
+                                .concat(worker.getAppName()).concat("/")
+                                .concat("worker-".concat(worker.SERVER_ID)),gson.toJson(currentWorkerDataModel).getBytes(),-1);
+
+                    } catch (KeeperException e) {
+                        e.printStackTrace();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                });
 
                 try {
-                    //TODO set async znodeEpoch to control update lock
-                    zk.setData(ZooPathTree.WORKERS.concat("/").concat(worker.SERVER_ID),gson.toJson(currentWorkerData).getBytes(),-1);
-
-                } catch (KeeperException e) {
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                try {
-                    Thread.sleep(500);
+                    Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
         });
-        this.worker = worker;
+
 
         try {
 
@@ -159,6 +167,8 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         }
         //TODO if a task is asigned to this worker in am empty space between this search and the cache the task can dead in vacuum.
         startAssignedTasks();
+
+
     }
 
 
