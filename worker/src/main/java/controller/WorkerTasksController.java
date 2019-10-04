@@ -37,9 +37,7 @@ import zookeeper.ZooCuratorConnection;
 import zookeeper.ZooPathTree;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 
@@ -55,6 +53,7 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
     private TreeCache treeCache;
 
     private TasksExecutorManager tem;
+    private final Timer timer;
 
     @Override
     public void onCompleted(String taskId) {
@@ -70,39 +69,29 @@ public class WorkerTasksController extends ZooController implements TasksExecuto
         tem = TasksExecutorManager.getInstance();
         tem.addTasksListener(this);//TODO FIXME Dependencia circular entre instancias (Se puede usar un método prepare())
 
-        CompletableFuture.runAsync(() -> {
-            while (true) {
+        //Actualización de métrica de delay contra directorio Zookeeper
+        timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
 
-                LOG.info("Max delay in queue: " + tem.getInHeadTaskDelay());
-
-                worker.getZooWorkerController().getCurrentWorkerData().ifPresent(childData ->{
-                    LOG.info("DENTROO");
-                    ZooWorkerDataModel currentWorkerDataModel = gson.fromJson(
-                            new String(childData.getData()), ZooWorkerDataModel.class);
-
+            @Override
+            public void run() {
+                LOG.info("Queue size: " + tem.getQueue().size());
+                worker.getZooWorkerController().getCurrentWorkerData().ifPresent(childData -> {
+                    ZooWorkerDataModel currentWorkerDataModel = gson.fromJson(new String(childData.getData()), ZooWorkerDataModel.class);
                     currentWorkerDataModel.setHeadTaskDelay(tem.getInHeadTaskDelay());
-
+                    LOG.info("Head delay: " + currentWorkerDataModel.getHeadTaskDelay());
                     try {
                         //TODO set async znodeEpoch to control update lock
                         zk.setData(ZooPathTree.WORKERS.concat("/")
                                 .concat(worker.getAppName()).concat("/")
                                 .concat("worker-".concat(worker.SERVER_ID)),gson.toJson(currentWorkerDataModel).getBytes(),-1);
 
-                    } catch (KeeperException e) {
-                        e.printStackTrace();
-                    } catch (InterruptedException e) {
+                    } catch (KeeperException | InterruptedException e) {
                         e.printStackTrace();
                     }
                 });
-
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
             }
-        });
-
+        }, 0, 5000);
 
         try {
 

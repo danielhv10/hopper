@@ -128,6 +128,7 @@ class TasksExecutorManager {
     boolean cancelTask(String taskId, boolean mayInterruptIfRunning) {
         boolean canceled;
         ScheduledFuture auxFuture = currentTasks.get(taskId);
+
         if (auxFuture != null) {
             //Si "cancel()" falla es porque o ya se canceló o está completada; también puede fallar por alguna otra cosa, pero eso no lo controlamos.
             if (!(canceled = auxFuture.cancel(mayInterruptIfRunning))) {
@@ -136,6 +137,9 @@ class TasksExecutorManager {
                     canceled = true;
                 }
             }
+            //Si todos los hilso están ocupados por tareas que nunca acaban, la señal del Future.cancel() de interrumpt puede no ser leída puesto que ningún hilo la ejecuta, quedando en el limbo.
+            //Por eso hacemos que si está en la cola se vaya fuera.
+            verboseScheduledPool.remove((Runnable) auxFuture);
         } else {
             //Si la tarea no existe, devuelve como que está cancelada
             canceled = true;
@@ -145,5 +149,9 @@ class TasksExecutorManager {
 
     long getInHeadTaskDelay() {
         return inHeadTaskDelay;
+    }
+
+    BlockingQueue<Runnable> getQueue() {
+        return verboseScheduledPool.getQueue();
     }
 }

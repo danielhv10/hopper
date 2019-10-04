@@ -104,9 +104,9 @@ public class Worker implements ZookeeperEntity {
             e.printStackTrace();
         }
     }
-    public Worker(String appName, String server, int port, int maxTasks, Class task) throws IOException {
+    public Worker(String appName, String server, int port, Class task) {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
-        maxAmountOfTasks = maxTasks;
+        this.maxAmountOfTasks = Runtime.getRuntime().availableProcessors(); //TODO Dejar más curioso
         this.zookeeperPort = port;
         this.zookeeperHost = server;
         this.appName = appName;
@@ -135,7 +135,6 @@ public class Worker implements ZookeeperEntity {
         };
 
         this.status = WorkersStates.WAITING;
-        this.maxAmountOfTasks = maxTasks;
         this.taskModel = task;
     }
 
