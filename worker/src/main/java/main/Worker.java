@@ -61,7 +61,7 @@ public class Worker implements ZookeeperEntity {
     //TODO solve exception
     public Worker() throws IOException {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
-        maxAmountOfTasks = 40;
+        maxAmountOfTasks = 40; //Todo quitar esto
 
         this.zookeeperPort = 2181;
         this.zookeeperHost = "localhost";
@@ -106,7 +106,7 @@ public class Worker implements ZookeeperEntity {
     }
     public Worker(String appName, String server, int port, Class task) {
         this.SERVER_ID = ZookeeperEntity.SERVER_ID;
-        this.maxAmountOfTasks = Runtime.getRuntime().availableProcessors(); //TODO Dejar más curioso
+        this.maxAmountOfTasks = 1000; //TODO Dejar dinámico
         this.zookeeperPort = port;
         this.zookeeperHost = server;
         this.appName = appName;
