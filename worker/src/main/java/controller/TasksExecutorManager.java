@@ -92,7 +92,7 @@ class TasksExecutorManager {
     }
 
     private int deduceCorePoolSize() {
-        return Runtime.getRuntime().availableProcessors();
+        return 1000;//TODO FIXME Cambiar
     }
 
     void addTasksListener(TasksListener listener) {
